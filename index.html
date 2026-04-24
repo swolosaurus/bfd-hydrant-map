@@ -166,17 +166,6 @@
     .h-bearing { font-size: 14px; font-weight: 600; color: var(--muted); }
     .h-meta { font-size: 11px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .nav-btns { display: flex; gap: 6px; flex-shrink: 0; }
-    .navbtn {
-      padding: 8px 11px; border-radius: 8px;
-      font-size: 12px; font-weight: 700;
-      text-decoration: none; color: #fff;
-      display: flex; align-items: center;
-      white-space: nowrap;
-    }
-    .nb-waze  { background: #33CCFF; color: #000; }
-    .nb-gmaps { background: #4285F4; }
-
     /* ── Loading overlay ── */
     #loading {
       display: none; position: fixed; inset: 0;
@@ -192,18 +181,6 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #loadMsg { color: #fff; font-size: 14px; font-weight: 500; }
 
-    /* ── Navigate incident bar ── */
-    #navBar {
-      display: none;
-      background: var(--card);
-      padding: 8px 14px;
-      gap: 8px;
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--border);
-    }
-    #navBar.show { display: flex; }
-    #navBar span { flex: 1; font-size: 12px; color: var(--muted); align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .nb-apple { background: #636366; }
   </style>
 </head>
 <body>
@@ -230,14 +207,6 @@
   </div>
 
   <div id="statusBar">Copy address from NowForce → tap 📋 — or tap 📍 for current location</div>
-
-  <!-- Navigate to incident buttons -->
-  <div id="navBar">
-    <span id="navBarAddr"></span>
-    <a class="navbtn nb-waze"  id="navWaze"  href="#" target="_blank">Waze</a>
-    <a class="navbtn nb-gmaps" id="navGmaps" href="#" target="_blank">Maps</a>
-    <a class="navbtn nb-apple" id="navApple" href="#" target="_blank">Apple</a>
-  </div>
 
   <div id="map"></div>
 
@@ -272,7 +241,10 @@ const RADIUS_FEET = 500;
 // ─────────────────────────────────────────────
 let map, geocoder, incidentMarker, infoWindow;
 let hydrantMarkers = [];
+let hydrantsData   = [];
 let lastLat = null, lastLng = null, lastAddr = '';
+let userLocationMarker = null;
+let locationWatchId    = null;
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -404,15 +376,8 @@ async function showHydrants(lat, lng, label) {
   });
   incidentMarker.addListener('click', () => showIncidentInfo(lat, lng, label));
 
-  // Navigation bar
-  const shortLabel = label.length > 35 ? label.slice(0, 34) + '…' : label;
-  document.getElementById('navBarAddr').textContent = shortLabel;
-  document.getElementById('navWaze').href  = `waze://?ll=${lat},${lng}&navigate=yes`;
-  document.getElementById('navGmaps').href = `https://maps.google.com/?daddr=${lat},${lng}`;
-  document.getElementById('navApple').href = `maps://?daddr=${lat},${lng}`;
-  document.getElementById('navBar').classList.add('show');
-
   // Header label
+  const shortLabel = label.length > 35 ? label.slice(0, 34) + '…' : label;
   const hdr = document.getElementById('incident-label');
   hdr.textContent = shortLabel;
   hdr.classList.add('show');
@@ -467,6 +432,7 @@ async function showHydrants(lat, lng, label) {
       dir:     getBearing(lat, lng, hLat, hLng),
     };
   }).filter(h => h.lat && h.lng).sort((a, b) => a.dist - b.dist);
+  hydrantsData = hydrants;
 
   // Map markers
   const COLORS  = ['#FF3B30','#FF9F0A','#FFD60A','#0A84FF'];
@@ -509,12 +475,6 @@ async function showHydrants(lat, lng, label) {
           </div>
           <div class="h-meta">${meta || 'No details available'}</div>
         </div>
-        <div class="nav-btns">
-          <a class="navbtn nb-waze"  href="waze://?ll=${h.lat},${h.lng}&navigate=yes"
-             onclick="event.stopPropagation()">W</a>
-          <a class="navbtn nb-gmaps" href="https://maps.google.com/?daddr=${h.lat},${h.lng}"
-             target="_blank" onclick="event.stopPropagation()">G</a>
-        </div>
       </div>`;
   }).join('');
 
@@ -533,21 +493,15 @@ function showIncidentInfo(lat, lng, label) {
   if (!infoWindow) infoWindow = new google.maps.InfoWindow();
   infoWindow.setContent(`
     <div style="font-family:-apple-system,sans-serif;padding:4px 2px;min-width:180px">
-      <div style="font-weight:700;font-size:14px;margin-bottom:8px">📍 ${label}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <a href="waze://?ll=${lat},${lng}&navigate=yes"
-           style="background:#33CCFF;color:#000;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Waze</a>
-        <a href="https://maps.google.com/?daddr=${lat},${lng}" target="_blank"
-           style="background:#4285F4;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Google Maps</a>
-        <a href="maps://?daddr=${lat},${lng}"
-           style="background:#636366;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Apple Maps</a>
-      </div>
+      <div style="font-weight:700;font-size:14px">📍 ${label}</div>
     </div>`);
   infoWindow.open(map, incidentMarker);
 }
 
 function showHydrantInfo(marker, h, i) {
   if (!infoWindow) infoWindow = new google.maps.InfoWindow();
+  if (!h) h = hydrantsData[i] || null;
+  if (!h) { infoWindow.open(map, marker); return; }
   const meta = [h.model, h.svcArea].filter(Boolean).join(' · ');
   infoWindow.setContent(`
     <div style="font-family:-apple-system,sans-serif;padding:4px 2px;min-width:160px">
@@ -555,13 +509,7 @@ function showHydrantInfo(marker, h, i) {
       <div style="font-size:13px;margin:4px 0;color:#555">
         ${Math.round(h.dist)} ft ${h.dir} · ID: ${h.id}
       </div>
-      ${meta ? `<div style="font-size:11px;color:#777;margin-bottom:8px">${meta}</div>` : ''}
-      <div style="display:flex;gap:6px">
-        <a href="waze://?ll=${h.lat},${h.lng}&navigate=yes"
-           style="background:#33CCFF;color:#000;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Waze</a>
-        <a href="https://maps.google.com/?daddr=${h.lat},${h.lng}" target="_blank"
-           style="background:#4285F4;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;font-weight:700;text-decoration:none">Maps</a>
-      </div>
+      ${meta ? `<div style="font-size:11px;color:#777">${meta}</div>` : ''}
     </div>`);
   infoWindow.open(map, marker);
 }
@@ -572,8 +520,7 @@ function showHydrantInfo(marker, h, i) {
 function panToHydrant(i, lat, lng) {
   map.panTo({ lat, lng });
   if (map.getZoom() < 18) map.setZoom(18);
-  showHydrantInfo(hydrantMarkers[i], null, i);
-  // Re-open with cached data from closure — just pan
+  showHydrantInfo(hydrantMarkers[i], hydrantsData[i] || null, i);
 }
 
 function scrollToRow(i) {
@@ -630,6 +577,38 @@ window.initMap = function() {
   document.getElementById('addressInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); search(); }
   });
+
+  // ── Live GPS blue dot ──
+  // Starts automatically — no button press needed.
+  // Updates continuously as the user moves toward the incident.
+  if (navigator.geolocation) {
+    locationWatchId = navigator.geolocation.watchPosition(
+      pos => {
+        const ulat = pos.coords.latitude;
+        const ulng = pos.coords.longitude;
+        if (!userLocationMarker) {
+          userLocationMarker = new google.maps.Marker({
+            position: { lat: ulat, lng: ulng },
+            map,
+            title: 'Your location',
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#1A73E8',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 3,
+            },
+            zIndex: 2000,
+          });
+        } else {
+          userLocationMarker.setPosition({ lat: ulat, lng: ulng });
+        }
+      },
+      () => { /* location permission denied — no dot shown */ },
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }
 
   // ── URL param support ──
   // Deep-link from iOS Shortcut: https://yourapp.com/?address=83+DAKOTA+ST+DO+BSTN
