@@ -643,18 +643,31 @@ window.initMap = function() {
     return;
   }
 
-  // ── Auto-read clipboard on load ──
-  setTimeout(async () => {
+  // ── Auto-read clipboard ──
+  // Reads clipboard and auto-searches if it looks like a street address.
+  // Only fires when the input is empty so it never clobbers a manual search.
+  async function tryClipboard() {
     try {
       const text = await navigator.clipboard.readText();
       if (!text) return;
-      document.getElementById('addressInput').value = text;
-      // Auto-search on NowForce format OR any standard street address (number + street)
+      const input = document.getElementById('addressInput');
+      if (input.value.trim()) return;          // don't overwrite manual entry
+      input.value = text;
       if (looksLikeNowForce(text) || /^\d{1,5}\s+[A-Za-z]/i.test(text.trim())) {
         search();
       }
-    } catch(e) { /* clipboard permission not yet granted */ }
-  }, 400);
+    } catch(e) { /* permission denied or doc not focused — silently skip */ }
+  }
+
+  // Try on initial load (works on desktop when page already has focus)
+  setTimeout(tryClipboard, 400);
+
+  // Key fix for Android: re-try every time the user switches back to this app
+  // (copy address in NowForce → switch to hydrant map → visibilitychange fires)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) setTimeout(tryClipboard, 150);
+  });
+  window.addEventListener('focus', () => setTimeout(tryClipboard, 150));
 };
 
 // ─────────────────────────────────────────────
