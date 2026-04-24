@@ -649,9 +649,8 @@ window.initMap = function() {
       const text = await navigator.clipboard.readText();
       if (!text) return;
       document.getElementById('addressInput').value = text;
-      // Auto-search only if it clearly looks like a NowForce address
-      if (looksLikeNowForce(text)) {
-        setStatus('NowForce address detected — searching…');
+      // Auto-search on NowForce format OR any standard street address (number + street)
+      if (looksLikeNowForce(text) || /^\d{1,5}\s+[A-Za-z]/i.test(text.trim())) {
         search();
       }
     } catch(e) { /* clipboard permission not yet granted */ }
