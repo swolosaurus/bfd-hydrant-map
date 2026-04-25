@@ -232,16 +232,19 @@
 // ─────────────────────────────────────────────
 //  CONFIG  — replace with your Google Maps key
 // ─────────────────────────────────────────────
-const GMAPS_KEY   = 'AIzaSyBUNrDmp3zgCmvEyIfsNFek_xf8Z159Vg4';
-const ARCGIS_URL  = 'https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/0/query';
-const RADIUS_FEET = 500;
+const GMAPS_KEY      = 'AIzaSyBUNrDmp3zgCmvEyIfsNFek_xf8Z159Vg4';
+const ARCGIS_URL     = 'https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/0/query';
+const BUILDINGS_URL  = 'https://gisportal.boston.gov/arcgis/rest/services/Boston_Maps/OpenData/MapServer/3/query';
+const RADIUS_FEET    = 500;
+const BUILDING_RADIUS_FEET = 350;
 
 // ─────────────────────────────────────────────
 //  STATE
 // ─────────────────────────────────────────────
 let map, geocoder, incidentMarker, infoWindow;
-let hydrantMarkers = [];
-let hydrantsData   = [];
+let hydrantMarkers   = [];
+let hydrantsData     = [];
+let buildingPolygons = [];
 let lastLat = null, lastLng = null, lastAddr = '';
 let userLocationMarker = null;
 let locationWatchId    = null;
@@ -293,6 +296,79 @@ function getBearing(lat1, lon1, lat2, lon2) {
             Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
   const brng = (Math.atan2(y, x) * 180/Math.PI + 360) % 360;
   return ['N','NE','E','SE','S','SW','W','NW'][Math.round(brng/45) % 8];
+}
+
+// ─────────────────────────────────────────────
+//  BUILDING FOOTPRINTS
+//  Pulls Boston building polygons within BUILDING_RADIUS_FEET
+//  of the incident point. The building containing the incident
+//  point is highlighted red; all others are drawn in subtle gray.
+// ─────────────────────────────────────────────
+function pointInPolygon(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i].lng, yi = ring[i].lat;
+    const xj = ring[j].lng, yj = ring[j].lat;
+    const hit = ((yi > lat) !== (yj > lat)) &&
+                (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+
+async function loadBuildings(lat, lng) {
+  // Clear old polygons
+  buildingPolygons.forEach(p => p.setMap(null));
+  buildingPolygons = [];
+
+  const params = new URLSearchParams({
+    geometry:      JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
+    geometryType:  'esriGeometryPoint',
+    inSR:          '4326',
+    spatialRel:    'esriSpatialRelIntersects',
+    distance:      BUILDING_RADIUS_FEET,
+    units:         'esriSRUnit_Foot',
+    outFields:     '*',
+    returnGeometry: true,
+    outSR:         '4326',
+    f:             'json',
+  });
+
+  let data;
+  try {
+    const r = await fetch(`${BUILDINGS_URL}?${params}`);
+    data = await r.json();
+  } catch(e) {
+    console.warn('Buildings layer fetch failed:', e);
+    return;
+  }
+  if (!data.features?.length) {
+    console.warn('No buildings returned. Layer may need a different URL.');
+    return;
+  }
+
+  data.features.forEach(f => {
+    if (!f.geometry?.rings) return;
+    const paths = f.geometry.rings.map(ring =>
+      ring.map(([x, y]) => ({ lat: y, lng: x }))
+    );
+
+    // Highlight the building that contains the incident
+    const isIncidentBldg = paths.some(p => pointInPolygon(lat, lng, p));
+
+    const polygon = new google.maps.Polygon({
+      paths,
+      map,
+      fillColor:    isIncidentBldg ? '#FF3B30' : '#777777',
+      fillOpacity:  isIncidentBldg ? 0.40 : 0.18,
+      strokeColor:  isIncidentBldg ? '#FF3B30' : '#9A9A9A',
+      strokeWeight: isIncidentBldg ? 2 : 1,
+      strokeOpacity: isIncidentBldg ? 0.95 : 0.55,
+      clickable: false,
+      zIndex:    isIncidentBldg ? 100 : 50,
+    });
+    buildingPolygons.push(polygon);
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -386,6 +462,9 @@ async function showHydrants(lat, lng, label) {
   hydrantMarkers.forEach(m => m.setMap(null));
   hydrantMarkers = [];
   if (infoWindow) infoWindow.close();
+
+  // Kick off building footprint draw in parallel — non-blocking
+  loadBuildings(lat, lng);
 
   // Query ArcGIS
   const params = new URLSearchParams({
