@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@bubblewrap/cli": "^1.24.1"
+  }
+}
