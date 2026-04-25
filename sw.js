@@ -1,4 +1,4 @@
-const CACHE = 'bfd-hydrants-v7';
+const CACHE = 'bfd-hydrants-v8';
 const SHELL = ['./','./index.html','./manifest.json'];
 
 self.addEventListener('install', e => {
@@ -20,7 +20,8 @@ self.addEventListener('fetch', e => {
   // Never cache external API calls — always live
   if (url.includes('maps.googleapis.com') ||
       url.includes('maps.gstatic.com') ||
-      url.includes('gisportal.boston.gov')) {
+      url.includes('gisportal.boston.gov') ||
+      url.includes('overpass')) {
     return;
   }
   e.respondWith(

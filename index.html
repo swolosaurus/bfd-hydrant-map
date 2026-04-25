@@ -234,7 +234,11 @@
 // ─────────────────────────────────────────────
 const GMAPS_KEY      = 'AIzaSyBUNrDmp3zgCmvEyIfsNFek_xf8Z159Vg4';
 const ARCGIS_URL     = 'https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/0/query';
-const OVERPASS_URL   = 'https://overpass-api.de/api/interpreter';
+// Try Kumi mirror first (more permissive), fall back to main server
+const OVERPASS_URLS  = [
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
+];
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -327,16 +331,23 @@ async function loadBuildings(lat, lng) {
                 `way(around:${radiusM},${lat},${lng})["building"];` +
                 `(._;>;);out body;`;
 
-  let data;
-  try {
-    const r = await fetch(`${OVERPASS_URL}?data=${encodeURIComponent(query)}`);
-    data = await r.json();
-  } catch(e) {
-    console.warn('Buildings (Overpass) fetch failed:', e);
-    return;
+  let data = null;
+  for (const endpoint of OVERPASS_URLS) {
+    try {
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(query),
+      });
+      if (!r.ok) { console.warn('Overpass', endpoint, 'returned', r.status); continue; }
+      data = await r.json();
+      break;
+    } catch(e) {
+      console.warn('Overpass', endpoint, 'fetch failed:', e);
+    }
   }
-  if (!data.elements?.length) {
-    console.warn('Overpass returned no buildings near', lat, lng);
+  if (!data || !data.elements?.length) {
+    console.warn('No buildings returned from any Overpass endpoint');
     return;
   }
 
