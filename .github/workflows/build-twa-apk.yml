@@ -42,6 +42,9 @@ jobs:
           fi
           ls "$ANDROID_HOME"
 
+      - name: Sync project with manifest changes
+        run: ./node_modules/.bin/bubblewrap update --skipVersionUpgrade
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
