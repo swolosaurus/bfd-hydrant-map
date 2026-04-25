@@ -20,7 +20,6 @@ import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.widget.Toast;
 
 
 
@@ -50,12 +49,6 @@ public class LauncherActivity
         try {
             Intent intent = getIntent();
             if (intent != null) intentUri = intent.getData();
-        } catch (Exception e) { /* ignore */ }
-
-        // Diagnostic Toast — remove once confirmed working.
-        try {
-            String raw = (intentUri != null) ? intentUri.toString() : "(no intent data)";
-            Toast.makeText(this, "v1.0.3 in: " + raw, Toast.LENGTH_LONG).show();
         } catch (Exception e) { /* ignore */ }
 
         String address = extractAddress(intentUri);
