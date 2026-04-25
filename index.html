@@ -301,10 +301,51 @@ function getBearing(lat1, lon1, lat2, lon2) {
 }
 
 // ─────────────────────────────────────────────
+//  IndexedDB cache (persistent across sessions)
+//  Buildings you've already pulled stay on the phone. Each visited
+//  block becomes instant on every future call to that area.
+// ─────────────────────────────────────────────
+const IDB_NAME  = 'bfd-hydrants';
+const IDB_STORE = 'buildings';
+let _idbPromise = null;
+
+function idbOpen() {
+  if (_idbPromise) return _idbPromise;
+  _idbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+  return _idbPromise;
+}
+
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    return await new Promise(resolve => {
+      const tx  = db.transaction(IDB_STORE, 'readonly');
+      const req = tx.objectStore(IDB_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror   = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+
+async function idbPut(key, value) {
+  try {
+    const db = await idbOpen();
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+  } catch(e) { /* ignore */ }
+}
+
+// ─────────────────────────────────────────────
 //  BUILDING FOOTPRINTS
 //  Pulls Boston building polygons within BUILDING_RADIUS_FEET
 //  of the incident point. The building containing the incident
 //  point is highlighted red; all others are drawn in subtle gray.
+//  Cached persistently in IndexedDB — visited blocks draw instantly.
 // ─────────────────────────────────────────────
 function pointInPolygon(lat, lng, ring) {
   let inside = false;
@@ -344,17 +385,19 @@ function drawBuildings(features, lat, lng) {
 }
 
 async function loadBuildings(lat, lng) {
-  // Cache key: round to 4 decimals (~11 m grid). Same area visited twice
-  // draws instantly from sessionStorage.
-  const cacheKey = `bldg_${lat.toFixed(4)}_${lng.toFixed(4)}_${BUILDING_RADIUS_FEET}`;
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      drawBuildings(JSON.parse(cached), lat, lng);
-      return;
-    }
-  } catch(e) { /* ignore storage errors */ }
+  // Cache key — round to 4 decimals (~11 m grid). Bump CACHE_VER to force
+  // re-fetch on schema changes (e.g. if Boston updates their dataset).
+  const CACHE_VER = 1;
+  const cacheKey = `b${CACHE_VER}_${lat.toFixed(4)}_${lng.toFixed(4)}_${BUILDING_RADIUS_FEET}`;
 
+  // 1. Hit persistent IndexedDB cache first
+  const cached = await idbGet(cacheKey);
+  if (cached) {
+    drawBuildings(cached, lat, lng);
+    return;
+  }
+
+  // 2. Fall through to live fetch from Boston's GIS server
   const params = new URLSearchParams({
     geometry:       JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
     geometryType:   'esriGeometryPoint',
@@ -381,8 +424,9 @@ async function loadBuildings(lat, lng) {
     return;
   }
 
-  try { sessionStorage.setItem(cacheKey, JSON.stringify(data.features)); } catch(e) {}
   drawBuildings(data.features, lat, lng);
+  // Persist for future sessions — fire-and-forget
+  idbPut(cacheKey, data.features);
 }
 
 // ─────────────────────────────────────────────
