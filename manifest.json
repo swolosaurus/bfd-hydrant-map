@@ -29,5 +29,14 @@
       "description": "Show hydrants at current location",
       "url": "./?gps=1"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text":  "address",
+      "url":   "url"
+    }
+  }
 }
