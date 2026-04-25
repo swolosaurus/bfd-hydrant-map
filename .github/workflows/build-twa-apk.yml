@@ -28,6 +28,14 @@ jobs:
       - name: Install Bubblewrap CLI
         run: npm install --silent
 
+      - name: Configure Bubblewrap (skip JDK/SDK install prompts)
+        run: |
+          mkdir -p ~/.bubblewrap
+          cat > ~/.bubblewrap/config.json <<EOF
+          {"jdkPath":"$JAVA_HOME","androidSdkPath":"$ANDROID_HOME"}
+          EOF
+          cat ~/.bubblewrap/config.json
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
