@@ -1,4 +1,4 @@
-const CACHE = 'bfd-hydrants-v9';
+const CACHE = 'bfd-hydrants-v10';
 const SHELL = ['./','./index.html','./manifest.json'];
 
 self.addEventListener('install', e => {
@@ -21,7 +21,7 @@ self.addEventListener('fetch', e => {
   if (url.includes('maps.googleapis.com') ||
       url.includes('maps.gstatic.com') ||
       url.includes('gisportal.boston.gov') ||
-      url.includes('overpass')) {
+      url.includes('bostonplans.org')) {
     return;
   }
   e.respondWith(
