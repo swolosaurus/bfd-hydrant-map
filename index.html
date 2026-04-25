@@ -234,7 +234,7 @@
 // ─────────────────────────────────────────────
 const GMAPS_KEY      = 'AIzaSyBUNrDmp3zgCmvEyIfsNFek_xf8Z159Vg4';
 const ARCGIS_URL     = 'https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/0/query';
-const BUILDINGS_URL  = 'https://gisportal.boston.gov/arcgis/rest/services/Boston_Maps/OpenData/MapServer/3/query';
+const OVERPASS_URL   = 'https://overpass-api.de/api/interpreter';
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -321,43 +321,41 @@ async function loadBuildings(lat, lng) {
   buildingPolygons.forEach(p => p.setMap(null));
   buildingPolygons = [];
 
-  const params = new URLSearchParams({
-    geometry:      JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
-    geometryType:  'esriGeometryPoint',
-    inSR:          '4326',
-    spatialRel:    'esriSpatialRelIntersects',
-    distance:      BUILDING_RADIUS_FEET,
-    units:         'esriSRUnit_Foot',
-    outFields:     '*',
-    returnGeometry: true,
-    outSR:         '4326',
-    f:             'json',
-  });
+  // Overpass query: every building within radius (meters)
+  const radiusM = Math.round(BUILDING_RADIUS_FEET * 0.3048);
+  const query = `[out:json][timeout:10];` +
+                `way(around:${radiusM},${lat},${lng})["building"];` +
+                `(._;>;);out body;`;
 
   let data;
   try {
-    const r = await fetch(`${BUILDINGS_URL}?${params}`);
+    const r = await fetch(`${OVERPASS_URL}?data=${encodeURIComponent(query)}`);
     data = await r.json();
   } catch(e) {
-    console.warn('Buildings layer fetch failed:', e);
+    console.warn('Buildings (Overpass) fetch failed:', e);
     return;
   }
-  if (!data.features?.length) {
-    console.warn('No buildings returned. Layer may need a different URL.');
+  if (!data.elements?.length) {
+    console.warn('Overpass returned no buildings near', lat, lng);
     return;
   }
 
-  data.features.forEach(f => {
-    if (!f.geometry?.rings) return;
-    const paths = f.geometry.rings.map(ring =>
-      ring.map(([x, y]) => ({ lat: y, lng: x }))
-    );
+  // Build node lookup
+  const nodes = {};
+  data.elements.forEach(el => {
+    if (el.type === 'node') nodes[el.id] = { lat: el.lat, lng: el.lon };
+  });
 
-    // Highlight the building that contains the incident
-    const isIncidentBldg = paths.some(p => pointInPolygon(lat, lng, p));
+  // Each "way" with building tag = one footprint
+  data.elements.forEach(el => {
+    if (el.type !== 'way' || !el.nodes) return;
+    const path = el.nodes.map(id => nodes[id]).filter(Boolean);
+    if (path.length < 3) return;
+
+    const isIncidentBldg = pointInPolygon(lat, lng, path);
 
     const polygon = new google.maps.Polygon({
-      paths,
+      paths: path,
       map,
       fillColor:    isIncidentBldg ? '#FF3B30' : '#777777',
       fillOpacity:  isIncidentBldg ? 0.40 : 0.18,
