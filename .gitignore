@@ -1,4 +1,5 @@
-# Raw uncompressed bundle — only the .gz version is shipped
+# Raw uncompressed bundles — only the .gz versions are shipped
 boston_buildings.json
+boston_hydrants.json
 build_log.txt
 __pycache__/

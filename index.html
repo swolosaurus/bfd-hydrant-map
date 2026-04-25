@@ -238,11 +238,13 @@ const ARCGIS_URL     = 'https://gisportal.boston.gov/arcgis/rest/services/Public
 // Same ArcGIS REST pattern as the hydrant layer, hosted by the city.
 // Used as a fallback if the local bundle hasn't downloaded yet.
 const BUILDINGS_URL  = 'https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9/query';
-// Pre-built bundle of every Boston building. Hosted alongside the app on
-// GitHub Pages. Downloaded once and cached forever in IndexedDB.
-// Bump BUNDLE_VER to force re-download when the dataset is regenerated.
-const BUNDLE_URL     = './boston_buildings.json.gz';
-const BUNDLE_VER     = 1;
+// Pre-built bundles, hosted alongside the app on GitHub Pages.
+// Downloaded once and cached forever in IndexedDB.
+// Bump *_BUNDLE_VER to force re-download when a dataset is regenerated.
+const BUNDLE_URL          = './boston_buildings.json.gz';
+const BUNDLE_VER          = 1;
+const HYDRANT_BUNDLE_URL  = './boston_hydrants.json.gz';
+const HYDRANT_BUNDLE_VER  = 1;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -260,6 +262,9 @@ let locationWatchId    = null;
 // Each entry: { b: [minLat, minLng, maxLat, maxLng], r: rings }
 let _allBuildings  = null;
 let _bundleLoading = null;  // promise while download is in flight
+// Same pattern for the hydrant bundle — { i: id, m: model, s: svcArea, y: lat, x: lng }
+let _allHydrants         = null;
+let _hydrantBundleLoading = null;
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -487,10 +492,111 @@ async function loadBuildings(lat, lng) {
   drawBuildings(matches, lat, lng);
 }
 
-// Kick off the bundle download as soon as the app boots so users don't
-// see the spinner the first time they search. Runs in the background;
-// if it finishes before the first search, lookups are instant.
-function preloadBundle() { ensureBundleLoaded(); }
+// Kick off bundle downloads as soon as the app boots so users don't
+// see a spinner the first time they search. Runs concurrently in the
+// background; lookups are instant once both finish.
+function preloadBundle() {
+  ensureBundleLoaded();
+  ensureHydrantsBundleLoaded();
+}
+
+// ─────────────────────────────────────────────
+//  HYDRANT BUNDLE — every Boston hydrant in 167 KB gzipped
+// ─────────────────────────────────────────────
+async function ensureHydrantsBundleLoaded() {
+  if (_allHydrants) return true;
+  if (_hydrantBundleLoading) return _hydrantBundleLoading;
+
+  _hydrantBundleLoading = (async () => {
+    const idbKey = `hydrants_v${HYDRANT_BUNDLE_VER}`;
+    const cached = await idbGet(idbKey);
+    if (cached && Array.isArray(cached) && cached.length > 1000) {
+      _allHydrants = cached;
+      console.log(`Hydrant bundle loaded from IDB: ${cached.length} hydrants`);
+      return true;
+    }
+    try {
+      const r = await fetch(HYDRANT_BUNDLE_URL);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const decoded = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const hydrants = await new Response(decoded).json();
+      _allHydrants = hydrants;
+      idbPut(idbKey, hydrants);
+      console.log(`Hydrant bundle fetched: ${hydrants.length} hydrants`);
+      return true;
+    } catch(e) {
+      console.warn('Hydrant bundle download failed; will fall back to live API.', e);
+      return false;
+    }
+  })();
+
+  const ok = await _hydrantBundleLoading;
+  _hydrantBundleLoading = null;
+  return ok;
+}
+
+// Filter the in-memory bundle to hydrants within RADIUS_FEET of (lat, lng).
+// Returns an array shaped like the live API response so showHydrants can
+// process it identically.
+function filterHydrantsBundle(lat, lng) {
+  const dLat = RADIUS_FEET / 364000;
+  const dLng = dLat / Math.cos(lat * Math.PI / 180);
+  const minLat = lat - dLat, maxLat = lat + dLat;
+  const minLng = lng - dLng, maxLng = lng + dLng;
+  const matches = [];
+  for (let i = 0; i < _allHydrants.length; i++) {
+    const h = _allHydrants[i];
+    if (h.y < minLat || h.y > maxLat || h.x < minLng || h.x > maxLng) continue;
+    const dist = haversine(lat, lng, h.y, h.x);
+    if (dist > RADIUS_FEET) continue;
+    matches.push({
+      id:      h.i || '—',
+      model:   h.m || '',
+      svcArea: h.s || '',
+      lat:     h.y,
+      lng:     h.x,
+      dist,
+      dir:     getBearing(lat, lng, h.y, h.x),
+    });
+  }
+  return matches.sort((a, b) => a.dist - b.dist);
+}
+
+// Live-API hydrant fallback (returns same shape as filterHydrantsBundle)
+async function fetchHydrantsLive(lat, lng) {
+  const params = new URLSearchParams({
+    geometry: JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
+    geometryType:  'esriGeometryPoint',
+    inSR:          '4326',
+    spatialRel:    'esriSpatialRelIntersects',
+    distance:      RADIUS_FEET,
+    units:         'esriSRUnit_Foot',
+    outFields:     'FACILITY_I,HYDRANT_MO,SERVICE_AR',
+    returnGeometry: true,
+    outSR:         '4326',
+    f:             'json',
+  });
+  const r = await fetch(`${ARCGIS_URL}?${params}`);
+  const data = await r.json();
+  if (!data.features?.length) return [];
+  return data.features.map(f => {
+    const hLat = f.geometry?.y, hLng = f.geometry?.x;
+    return {
+      id:      f.attributes.FACILITY_I || '—',
+      model:   f.attributes.HYDRANT_MO || '',
+      svcArea: f.attributes.SERVICE_AR || '',
+      lat: hLat, lng: hLng,
+      dist: haversine(lat, lng, hLat, hLng),
+      dir:  getBearing(lat, lng, hLat, hLng),
+    };
+  }).filter(h => h.lat && h.lng).sort((a, b) => a.dist - b.dist);
+}
+
+async function findHydrantsNear(lat, lng) {
+  const ok = await ensureHydrantsBundleLoaded();
+  if (ok) return filterHydrantsBundle(lat, lng);
+  return fetchHydrantsLive(lat, lng);
+}
 
 // ─────────────────────────────────────────────
 //  CLIPBOARD PASTE
@@ -587,24 +693,10 @@ async function showHydrants(lat, lng, label) {
   // Kick off building footprint draw in parallel — non-blocking
   loadBuildings(lat, lng);
 
-  // Query ArcGIS
-  const params = new URLSearchParams({
-    geometry: JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
-    geometryType:  'esriGeometryPoint',
-    inSR:          '4326',
-    spatialRel:    'esriSpatialRelIntersects',
-    distance:      RADIUS_FEET,
-    units:         'esriSRUnit_Foot',
-    outFields:     'FACILITY_I,HYDRANT_MO,SERVICE_AR',
-    returnGeometry: true,
-    outSR:         '4326',
-    f:             'json',
-  });
-
-  let data;
+  // Find hydrants — uses local bundle if loaded, falls back to live API
+  let hydrants;
   try {
-    const r = await fetch(`${ARCGIS_URL}?${params}`);
-    data = await r.json();
+    hydrants = await findHydrantsNear(lat, lng);
   } catch(e) {
     hideLoad();
     setStatus('⚠️  Could not load hydrant data — check connection');
@@ -612,26 +704,11 @@ async function showHydrants(lat, lng, label) {
   }
   hideLoad();
 
-  if (!data.features?.length) {
+  if (!hydrants.length) {
     setStatus(`⚠️  No hydrants found within ${RADIUS_FEET} ft`);
     document.getElementById('panel').classList.remove('open');
     return;
   }
-
-  // Process features
-  const hydrants = data.features.map(f => {
-    // Use geometry (outSR=4326 guarantees WGS84); attribute Lat/Lng fields are MA State Plane feet
-    const hLat = f.geometry?.y;
-    const hLng = f.geometry?.x;
-    return {
-      id:      f.attributes.FACILITY_I || '—',
-      model:   f.attributes.HYDRANT_MO || '',
-      svcArea: f.attributes.SERVICE_AR || '',
-      lat: hLat, lng: hLng,
-      dist:    haversine(lat, lng, hLat, hLng),
-      dir:     getBearing(lat, lng, hLat, hLng),
-    };
-  }).filter(h => h.lat && h.lng).sort((a, b) => a.dist - b.dist);
   hydrantsData = hydrants;
 
   // Map markers
