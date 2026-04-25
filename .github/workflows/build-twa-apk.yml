@@ -35,6 +35,12 @@ jobs:
           {"jdkPath":"$JAVA_HOME","androidSdkPath":"$ANDROID_HOME"}
           EOF
           cat ~/.bubblewrap/config.json
+          # Bubblewrap validates SDK by checking for a `tools` or `bin` folder at root.
+          # Newer cmdline-tools layout puts these under cmdline-tools/latest/ — symlink it.
+          if [ ! -e "$ANDROID_HOME/tools" ] && [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            ln -s "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/tools"
+          fi
+          ls "$ANDROID_HOME"
 
       - name: Decode keystore
         env:
