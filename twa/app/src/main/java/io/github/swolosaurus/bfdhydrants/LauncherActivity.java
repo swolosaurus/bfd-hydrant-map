@@ -83,8 +83,9 @@ public class LauncherActivity
             String query = qIdx >= 0 ? ssp.substring(qIdx + 1) : "";
             if (!query.isEmpty()) {
                 for (String param : query.split("&")) {
-                    if (param.startsWith("q=")) {
-                        return Uri.decode(param.substring(2));
+                    String p = param.trim();
+                    if (p.startsWith("q=")) {
+                        return Uri.decode(p.substring(2)).trim();
                     }
                 }
             }
