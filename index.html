@@ -107,6 +107,21 @@
       min-height: 24px; line-height: 1.4;
     }
 
+    /* ── Version badge ── */
+    #versionBadge {
+      position: fixed;
+      bottom: env(safe-area-inset-bottom, 4px);
+      left: 4px;
+      z-index: 9999;
+      font-size: 9px;
+      color: rgba(255,255,255,0.35);
+      background: rgba(0,0,0,0.4);
+      padding: 1px 5px;
+      border-radius: 3px;
+      pointer-events: none;
+      font-family: monospace;
+    }
+
     /* ── Map ── */
     #map { flex: 1; min-height: 0; }
 
@@ -978,6 +993,15 @@ if ('serviceWorker' in navigator) {
     link.href = c.toDataURL('image/png');
     document.head.appendChild(link);
   } catch(e) {}
+})();
+
+// Version badge — bumped each build so you can confirm which code is live.
+(function(){
+  const ver = 'v16';
+  const el = document.createElement('div');
+  el.id = 'versionBadge';
+  el.textContent = ver;
+  document.body.appendChild(el);
 })();
 </script>
 </body>
