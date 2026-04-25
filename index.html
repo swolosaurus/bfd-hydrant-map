@@ -236,7 +236,13 @@ const GMAPS_KEY      = 'AIzaSyBUNrDmp3zgCmvEyIfsNFek_xf8Z159Vg4';
 const ARCGIS_URL     = 'https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/0/query';
 // Boston's own building footprint layer (with roof breaks).
 // Same ArcGIS REST pattern as the hydrant layer, hosted by the city.
+// Used as a fallback if the local bundle hasn't downloaded yet.
 const BUILDINGS_URL  = 'https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9/query';
+// Pre-built bundle of every Boston building. Hosted alongside the app on
+// GitHub Pages. Downloaded once and cached forever in IndexedDB.
+// Bump BUNDLE_VER to force re-download when the dataset is regenerated.
+const BUNDLE_URL     = './boston_buildings.json.gz';
+const BUNDLE_VER     = 1;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -250,6 +256,10 @@ let buildingPolygons = [];
 let lastLat = null, lastLng = null, lastAddr = '';
 let userLocationMarker = null;
 let locationWatchId    = null;
+// Full Boston building bundle, loaded from gh-pages once and kept in memory.
+// Each entry: { b: [minLat, minLng, maxLat, maxLng], r: rings }
+let _allBuildings  = null;
+let _bundleLoading = null;  // promise while download is in flight
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -384,20 +394,53 @@ function drawBuildings(features, lat, lng) {
   });
 }
 
-async function loadBuildings(lat, lng) {
-  // Cache key — round to 4 decimals (~11 m grid). Bump CACHE_VER to force
-  // re-fetch on schema changes (e.g. if Boston updates their dataset).
-  const CACHE_VER = 1;
-  const cacheKey = `b${CACHE_VER}_${lat.toFixed(4)}_${lng.toFixed(4)}_${BUILDING_RADIUS_FEET}`;
+// Ensure the city-wide bundle is loaded. Returns true on success, false if
+// download fails (caller falls back to live per-area API).
+async function ensureBundleLoaded() {
+  if (_allBuildings) return true;
+  if (_bundleLoading) return _bundleLoading;
 
-  // 1. Hit persistent IndexedDB cache first
+  _bundleLoading = (async () => {
+    // 1. Try IndexedDB
+    const idbKey = `bundle_v${BUNDLE_VER}`;
+    const cached = await idbGet(idbKey);
+    if (cached && Array.isArray(cached) && cached.length > 1000) {
+      _allBuildings = cached;
+      console.log(`Buildings bundle loaded from IDB: ${cached.length} features`);
+      return true;
+    }
+
+    // 2. Download from GitHub Pages (one-time, ~7 MB gzipped)
+    showLoad('Downloading Boston buildings (one-time, ~7 MB)…');
+    try {
+      const r = await fetch(BUNDLE_URL);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      // Stream + native gzip decode, then JSON parse
+      const decoded = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const features = await new Response(decoded).json();
+      _allBuildings = features;
+      idbPut(idbKey, features);
+      console.log(`Bundle fetched: ${features.length} features`);
+      hideLoad();
+      return true;
+    } catch(e) {
+      console.warn('Bundle download failed; will fall back to live API.', e);
+      hideLoad();
+      return false;
+    }
+  })();
+
+  const ok = await _bundleLoading;
+  _bundleLoading = null;
+  return ok;
+}
+
+// Live-API fallback (also used the first time before bundle finishes loading)
+async function loadBuildingsLive(lat, lng) {
+  const cacheKey = `live_${lat.toFixed(4)}_${lng.toFixed(4)}_${BUILDING_RADIUS_FEET}`;
   const cached = await idbGet(cacheKey);
-  if (cached) {
-    drawBuildings(cached, lat, lng);
-    return;
-  }
+  if (cached) { drawBuildings(cached, lat, lng); return; }
 
-  // 2. Fall through to live fetch from Boston's GIS server
   const params = new URLSearchParams({
     geometry:       JSON.stringify({ x: lng, y: lat, spatialReference: { wkid: 4326 } }),
     geometryType:   'esriGeometryPoint',
@@ -410,24 +453,44 @@ async function loadBuildings(lat, lng) {
     outSR:          '4326',
     f:              'json',
   });
-
   let data;
   try {
     const r = await fetch(`${BUILDINGS_URL}?${params}`);
     data = await r.json();
-  } catch(e) {
-    console.warn('Buildings fetch failed:', e);
-    return;
-  }
-  if (!data.features?.length) {
-    console.warn('No buildings returned for', lat, lng);
-    return;
-  }
-
+  } catch(e) { console.warn('Buildings live fetch failed:', e); return; }
+  if (!data.features?.length) return;
   drawBuildings(data.features, lat, lng);
-  // Persist for future sessions — fire-and-forget
   idbPut(cacheKey, data.features);
 }
+
+async function loadBuildings(lat, lng) {
+  const ok = await ensureBundleLoaded();
+  if (!ok) {
+    // Bundle unavailable — fall back to per-area live fetch
+    return loadBuildingsLive(lat, lng);
+  }
+
+  // Bbox of search area (rough conversion: 1 deg lat ≈ 364,000 ft)
+  const dLat = BUILDING_RADIUS_FEET / 364000;
+  const dLng = dLat / Math.cos(lat * Math.PI / 180);
+  const minLat = lat - dLat, maxLat = lat + dLat;
+  const minLng = lng - dLng, maxLng = lng + dLng;
+
+  // Brute-force bbox filter — ~50 ms for 128K features on modern phones
+  const matches = [];
+  for (let i = 0; i < _allBuildings.length; i++) {
+    const f = _allBuildings[i];
+    const b = f.b;
+    if (b[2] < minLat || b[0] > maxLat || b[3] < minLng || b[1] > maxLng) continue;
+    matches.push({ geometry: { rings: f.r } });
+  }
+  drawBuildings(matches, lat, lng);
+}
+
+// Kick off the bundle download as soon as the app boots so users don't
+// see the spinner the first time they search. Runs in the background;
+// if it finishes before the first search, lookups are instant.
+function preloadBundle() { ensureBundleLoaded(); }
 
 // ─────────────────────────────────────────────
 //  CLIPBOARD PASTE
@@ -714,6 +777,12 @@ window.initMap = function() {
   document.getElementById('addressInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); search(); }
   });
+
+  // ── Preload the city-wide building bundle in the background ──
+  // First launch downloads ~10 MB; cached forever after. Runs concurrently
+  // with map setup so the user never sees a blocking spinner unless they
+  // search before the download completes.
+  preloadBundle();
 
   // ── Live GPS blue dot ──
   // Starts automatically — no button press needed.
