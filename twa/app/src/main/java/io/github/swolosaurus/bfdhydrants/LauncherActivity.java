@@ -43,29 +43,32 @@ public class LauncherActivity
 
     @Override
     protected Uri getLaunchingUrl() {
-        // Get the original launch Url.
-        Uri uri = super.getLaunchingUrl();
-
-        // Diagnostic: show the raw incoming URI in a Toast so we can see
-        // exactly what NowForce is firing at us. Remove once auto-fill works.
+        // Always read the raw intent data first — super.getLaunchingUrl() may
+        // strip non-https schemes (e.g. geo:) and replace them with the
+        // manifest start URL.
+        Uri intentUri = null;
         try {
             Intent intent = getIntent();
-            String raw = (intent != null && intent.getData() != null)
-                    ? intent.getData().toString()
-                    : String.valueOf(uri);
-            Toast.makeText(this, "Incoming: " + raw, Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            // ignore
-        }
+            if (intent != null) intentUri = intent.getData();
+        } catch (Exception e) { /* ignore */ }
 
-        String address = extractAddress(uri);
+        // Diagnostic Toast — remove once confirmed working.
+        try {
+            String raw = (intentUri != null) ? intentUri.toString() : "(no intent data)";
+            Toast.makeText(this, "v1.0.3 in: " + raw, Toast.LENGTH_LONG).show();
+        } catch (Exception e) { /* ignore */ }
+
+        String address = extractAddress(intentUri);
         if (address != null && !address.isEmpty()) {
             return Uri.parse("https://swolosaurus.github.io/bfd-hydrant-map/")
                     .buildUpon()
                     .appendQueryParameter("address", address)
                     .build();
         }
-        return uri;
+
+        // No usable address — fall back to whatever the parent picks (manifest
+        // start URL by default).
+        return super.getLaunchingUrl();
     }
 
     /** Extract a usable address/query string from any maps-style URI. */
