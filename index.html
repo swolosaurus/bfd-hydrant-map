@@ -653,11 +653,12 @@ function useLocation() {
 function search() {
   const raw = document.getElementById('addressInput').value.trim();
   if (!raw) return;
-  const addr = parseNowForce(raw);
+  // Detect lat,lng input (e.g. from NowForce geo: intent) — check raw BEFORE
+  // parseNowForce, which mangles coordinates with ", Boston, MA".
+  const llMatch = raw.match(/^\s*(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  const isLatLng = !!llMatch;
+  const addr = isLatLng ? `${llMatch[1]},${llMatch[2]}` : parseNowForce(raw);
   showLoad('Locating ' + addr + '…');
-  // Detect lat,lng input (e.g. from NowForce geo: intent) and reverse-geocode
-  // to get a real street address for the display label.
-  const isLatLng = /^-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+$/.test(addr);
   geocoder.geocode({ address: addr, region: 'us' }, (results, status) => {
     if (status !== 'OK' || !results.length) {
       hideLoad();
@@ -665,7 +666,6 @@ function search() {
       return;
     }
     const loc = results[0].geometry.location;
-    // Prefer formatted_address when the user fed in raw coordinates
     const label = isLatLng ? (results[0].formatted_address || addr) : addr;
     document.getElementById('addressInput').value = label;
     showHydrants(loc.lat(), loc.lng(), label);
@@ -997,7 +997,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v16';
+  const ver = 'v17';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
