@@ -42,6 +42,11 @@ jobs:
           fi
           ls "$ANDROID_HOME"
 
+      - name: Sync manifest checksum (avoid interactive prompt)
+        run: |
+          node -e "const c=require('crypto'),fs=require('fs');fs.writeFileSync('manifest-checksum.txt',c.createHash('sha1').update(fs.readFileSync('twa-manifest.json')).digest('hex'))"
+          cat manifest-checksum.txt
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
