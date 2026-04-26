@@ -1,4 +1,4 @@
-const CACHE = 'bfd-hydrants-v27';
+const CACHE = 'bfd-hydrants-v28';
 const SHELL = ['./','./index.html','./manifest.json'];
 
 self.addEventListener('install', e => {
@@ -24,7 +24,8 @@ self.addEventListener('fetch', e => {
       url.includes('bostonplans.org') ||
       url.includes('boston_buildings.json') ||
       url.includes('boston_hydrants.json') ||
-      url.includes('boston_districts.json')) {
+      url.includes('boston_districts.json') ||
+      url.includes('/running_cards/')) {
     return;
   }
   e.respondWith(

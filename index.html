@@ -157,6 +157,56 @@
     /* ── Map ── */
     #map { flex: 1; min-height: 0; }
 
+    /* ── Running card thumbnail (bottom-right of map) ── */
+    #running-card {
+      position: fixed;
+      right: 8px; bottom: 56px;            /* sits above the panel header */
+      width: 180px;
+      background: var(--card);
+      border: 1.5px solid var(--red);
+      border-radius: 8px;
+      padding: 4px;
+      z-index: 500;
+      display: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+    }
+    #running-card.show { display: block; }
+    #running-card-label {
+      font-size: 10px; font-weight: 800;
+      color: var(--text);
+      padding: 2px 4px 4px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    #running-card-img {
+      width: 100%; display: block; border-radius: 4px;
+    }
+    #card-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 9999;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 20px;
+      overflow: auto;
+    }
+    #card-modal.show { display: flex; }
+    #card-modal-img {
+      max-width: 100%; max-height: 100%;
+      object-fit: contain;
+    }
+    #card-modal-close {
+      position: fixed;
+      top: 12px; right: 12px;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      color: white; font-size: 22px;
+      border: none; cursor: pointer;
+      z-index: 10000;
+    }
+
     /* ── Bottom panel ── */
     #panel {
       background: var(--panel);
@@ -261,6 +311,19 @@
   <div id="statusBar">Paste address (📋), tap 📍 for GPS, or tap ✕ to clear and type</div>
 
   <div id="map"></div>
+
+  <!-- Running card thumbnail — shown when a Nearest Box is found in the
+       NowForce dispatch text. Tap to open full-screen modal. -->
+  <div id="running-card" role="button" aria-label="View running card">
+    <div id="running-card-label"></div>
+    <img id="running-card-img" alt="Running card">
+  </div>
+
+  <!-- Full-screen running-card viewer -->
+  <div id="card-modal" role="dialog" aria-label="Running card">
+    <button id="card-modal-close" type="button" aria-label="Close">✕</button>
+    <img id="card-modal-img" alt="Running card">
+  </div>
 
   <div id="panel">
     <div id="panelHeader">
@@ -729,6 +792,7 @@ async function pasteClipboard() {
     const text = await navigator.clipboard.readText();
     if (!text) { setStatus('Clipboard is empty'); return; }
     document.getElementById('addressInput').value = text;
+    setRunningCard(parseBoxNumber(text));
     search();
   } catch(e) {
     // Fallback: focus input so user can manually paste
@@ -805,16 +869,19 @@ async function runLatLngSearch(latlng, opts = {}) {
   // Try the clipboard first — async, but cheap if the user already copied
   // the dispatch. Skipped for GPS button (no NowForce context).
   let clipLabel = null;
+  let clipBox = null;
   if (useClipboard) {
     try {
       if (navigator.clipboard && navigator.clipboard.readText) {
         const text = await navigator.clipboard.readText();
-        if (text && looksLikeNowForce(text)) {
-          clipLabel = parseNowForce(text);
+        if (text) {
+          if (looksLikeNowForce(text)) clipLabel = parseNowForce(text);
+          clipBox = parseBoxNumber(text);
         }
       }
     } catch(e) { /* permission denied or no clipboard — fall back to geocode */ }
   }
+  setRunningCard(clipBox);
 
   if (clipLabel) {
     document.getElementById('addressInput').value = prettifyAddress(clipLabel);
@@ -864,6 +931,36 @@ function prettifyAddress(s) {
 function titleCase(s) {
   return s.replace(/[A-Za-z][A-Za-z']*/g,
     w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+// Extract a BFD alarm box number from a NowForce dispatch text:
+//   "Comment: Nearest Box: 2771 BELGRADE & COLBERG AVS --- E10 ---"
+// → "2771". Returns null if no box found.
+function parseBoxNumber(text) {
+  if (!text) return null;
+  const m = text.match(/Nearest\s*Box:\s*(\d{3,4})\b/i);
+  return m ? m[1] : null;
+}
+
+// Show or hide the running-card thumbnail. Box `null` hides it.
+function setRunningCard(box) {
+  const wrap = document.getElementById('running-card');
+  const img  = document.getElementById('running-card-img');
+  const lbl  = document.getElementById('running-card-label');
+  if (!box) { wrap.classList.remove('show'); return; }
+  const url = `./running_cards/${box}.png`;
+  // Probe the image; only show if it loads successfully (some boxes may not
+  // have a card on file).
+  const probe = new Image();
+  probe.onload = () => {
+    lbl.textContent = `BOX ${box}`;
+    img.src = url;
+    wrap.classList.add('show');
+  };
+  probe.onerror = () => {
+    wrap.classList.remove('show');
+  };
+  probe.src = url;
 }
 
 // ─────────────────────────────────────────────
@@ -1091,7 +1188,22 @@ window.initMap = function() {
   document.getElementById('clearBtn').addEventListener('click', () => {
     inputEl.value = '';
     inputEl.focus();
+    setRunningCard(null);
   });
+
+  // Running-card thumbnail → full-screen modal
+  const cardThumb = document.getElementById('running-card');
+  const modal     = document.getElementById('card-modal');
+  const modalImg  = document.getElementById('card-modal-img');
+  const cardImg   = document.getElementById('running-card-img');
+  cardThumb.addEventListener('click', () => {
+    if (!cardImg.src) return;
+    modalImg.src = cardImg.src;
+    modal.classList.add('show');
+  });
+  const closeModal = () => modal.classList.remove('show');
+  document.getElementById('card-modal-close').addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
   // ── Preload the city-wide building bundle in the background ──
   // First launch downloads ~10 MB; cached forever after. Runs concurrently
@@ -1161,6 +1273,7 @@ window.initMap = function() {
       const input = document.getElementById('addressInput');
       if (input.value.trim()) return;          // don't overwrite manual entry
       input.value = text;
+      setRunningCard(parseBoxNumber(text));
       if (looksLikeNowForce(text) || /^\d{1,5}\s+[A-Za-z]/i.test(text.trim())) {
         search();
       }
@@ -1222,7 +1335,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v27';
+  const ver = 'v28';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
