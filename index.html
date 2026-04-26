@@ -85,9 +85,14 @@
       flex-shrink: 0;
       border-bottom: 1px solid var(--border);
     }
+    #inputWrap {
+      position: relative;
+      flex: 1; min-width: 0;
+      display: flex;
+    }
     #addressInput {
       flex: 1; min-width: 0;
-      padding: 12px 14px;
+      padding: 12px 38px 12px 14px;
       background: var(--card);
       border: 1.5px solid var(--border);
       border-radius: 10px;
@@ -97,6 +102,23 @@
     }
     #addressInput:focus   { border-color: var(--red); }
     #addressInput::placeholder { color: var(--muted); }
+    #clearBtn {
+      position: absolute;
+      right: 8px; top: 50%; transform: translateY(-50%);
+      width: 26px; height: 26px;
+      border: none; border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+      color: var(--text);
+      font-size: 16px; line-height: 1;
+      cursor: pointer;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 0;
+    }
+    /* Auto-shows whenever input has a value (placeholder is hidden) — works
+       for both user typing and programmatic value sets */
+    #addressInput:not(:placeholder-shown) ~ #clearBtn { display: flex; }
+    #clearBtn:active { background: rgba(255,255,255,0.22); }
     .btn {
       min-width: 46px; min-height: 46px;
       padding: 0 14px;
@@ -105,7 +127,6 @@
       cursor: pointer; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    #goBtn    { background: var(--red); color: #fff; letter-spacing: 0.5px; }
     #pasteBtn { background: var(--card); color: var(--text); border: 1.5px solid var(--border); font-size: 19px; }
     #locBtn   { background: var(--card); color: var(--text); border: 1.5px solid var(--border); font-size: 19px; }
 
@@ -226,16 +247,18 @@
   </div>
 
   <div id="searchbar">
-    <input type="text" id="addressInput"
-           placeholder="Paste NowForce address…"
-           autocomplete="off" autocorrect="off"
-           autocapitalize="off" spellcheck="false">
+    <div id="inputWrap">
+      <input type="text" id="addressInput"
+             placeholder="Paste NowForce address…"
+             autocomplete="off" autocorrect="off"
+             autocapitalize="off" spellcheck="false">
+      <button id="clearBtn" type="button" aria-label="Clear address">✕</button>
+    </div>
     <button class="btn" id="pasteBtn" title="Paste from clipboard">📋</button>
     <button class="btn" id="locBtn"   title="Use my GPS location">📍</button>
-    <button class="btn" id="goBtn">GO</button>
   </div>
 
-  <div id="statusBar">Copy address from NowForce → tap 📋 — or tap 📍 for current location</div>
+  <div id="statusBar">Paste address (📋), tap 📍 for GPS, or tap ✕ to clear and type</div>
 
   <div id="map"></div>
 
@@ -1059,11 +1082,15 @@ window.initMap = function() {
   });
 
   // ── Event listeners ──
-  document.getElementById('goBtn').addEventListener('click', search);
   document.getElementById('pasteBtn').addEventListener('click', pasteClipboard);
   document.getElementById('locBtn').addEventListener('click', useLocation);
-  document.getElementById('addressInput').addEventListener('keydown', e => {
+  const inputEl = document.getElementById('addressInput');
+  inputEl.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); search(); }
+  });
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    inputEl.value = '';
+    inputEl.focus();
   });
 
   // ── Preload the city-wide building bundle in the background ──
@@ -1195,7 +1222,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v26';
+  const ver = 'v27';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
