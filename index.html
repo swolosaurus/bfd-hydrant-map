@@ -260,6 +260,8 @@ const BUNDLE_URL          = './boston_buildings.json.gz';
 const BUNDLE_VER          = 1;
 const HYDRANT_BUNDLE_URL  = './boston_hydrants.json.gz';
 const HYDRANT_BUNDLE_VER  = 1;
+const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
+const DISTRICT_BUNDLE_VER = 1;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -278,8 +280,10 @@ let locationWatchId    = null;
 let _allBuildings  = null;
 let _bundleLoading = null;  // promise while download is in flight
 // Same pattern for the hydrant bundle — { i: id, m: model, s: svcArea, y: lat, x: lng }
-let _allHydrants         = null;
+let _allHydrants          = null;
 let _hydrantBundleLoading = null;
+let _allDistricts          = null;
+let _districtBundleLoading = null;
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -513,6 +517,73 @@ async function loadBuildings(lat, lng) {
 function preloadBundle() {
   ensureBundleLoaded();
   ensureHydrantsBundleLoaded();
+  ensureDistrictsBundleLoaded();
+}
+
+// ─────────────────────────────────────────────
+//  DISTRICT BUNDLE — 9 BFD fire districts, ~38 KB gzipped
+// ─────────────────────────────────────────────
+async function ensureDistrictsBundleLoaded() {
+  if (_allDistricts) return true;
+  if (_districtBundleLoading) return _districtBundleLoading;
+
+  _districtBundleLoading = (async () => {
+    const idbKey = `districts_v${DISTRICT_BUNDLE_VER}`;
+    const cached = await idbGet(idbKey);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      _allDistricts = cached;
+      console.log(`District bundle loaded from IDB: ${cached.length} districts`);
+      return true;
+    }
+    try {
+      const r = await fetch(DISTRICT_BUNDLE_URL);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const decoded = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const districts = await new Response(decoded).json();
+      _allDistricts = districts;
+      idbPut(idbKey, districts);
+      console.log(`District bundle fetched: ${districts.length} districts`);
+      return true;
+    } catch(e) {
+      console.warn('District bundle download failed; district badge unavailable.', e);
+      return false;
+    }
+  })();
+
+  const ok = await _districtBundleLoading;
+  _districtBundleLoading = null;
+  return ok;
+}
+
+// Point-in-polygon (ray casting) for [lng, lat] rings.
+function _pointInRing(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi || 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Find the BFD district that contains the given point. Returns the district
+// number or null if the point is outside all districts (or bundle not loaded).
+function findDistrict(lat, lng) {
+  if (!_allDistricts) return null;
+  for (const d of _allDistricts) {
+    const [minLat, minLng, maxLat, maxLng] = d.b;
+    if (lat < minLat || lat > maxLat || lng < minLng || lng > maxLng) continue;
+    // Multi-ring polygon: outer ring contains, inner rings exclude (holes).
+    // For simple BFD districts there should only be a single outer ring per
+    // polygon, but handle the general case anyway.
+    let hits = 0;
+    for (const ring of d.r) {
+      if (_pointInRing(lat, lng, ring)) hits++;
+    }
+    if (hits % 2 === 1) return d.d;
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────
@@ -721,11 +792,22 @@ async function showHydrants(lat, lng, label) {
   });
   incidentMarker.addListener('click', () => showIncidentInfo(lat, lng, label));
 
-  // Header label
+  // Header label — prepend BFD district (e.g. "D1  72 Lubec St")
   const shortLabel = label.length > 35 ? label.slice(0, 34) + '…' : label;
   const hdr = document.getElementById('incident-label');
-  hdr.textContent = shortLabel;
+  const districtNow = findDistrict(lat, lng);
+  hdr.textContent = districtNow != null
+    ? `D${districtNow}  ${shortLabel}`
+    : shortLabel;
   hdr.classList.add('show');
+  // If bundle wasn't loaded yet, retry once it lands
+  if (districtNow == null) {
+    ensureDistrictsBundleLoaded().then(ok => {
+      if (!ok) return;
+      const d = findDistrict(lat, lng);
+      if (d != null) hdr.textContent = `D${d}  ${shortLabel}`;
+    });
+  }
 
   // Clear old hydrant markers
   hydrantMarkers.forEach(m => m.setMap(null));
@@ -1026,7 +1108,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v18';
+  const ver = 'v19';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
