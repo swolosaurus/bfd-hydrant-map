@@ -165,13 +165,18 @@
       z-index: 50;
       display: none;
       align-items: center; justify-content: center;
-      padding: 8px;
-      overflow: auto;
+      overflow: hidden;
+      touch-action: none;  /* take over gestures for pinch-zoom */
     }
     #card-modal.show { display: flex; }
     #card-modal-img {
       max-width: 100%; max-height: 100%;
       object-fit: contain;
+      transform-origin: 0 0;
+      will-change: transform;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;  /* gestures handled on the modal itself */
     }
     #card-modal-close {
       position: absolute;
@@ -1238,20 +1243,101 @@ window.initMap = function() {
     setRunningCard(null);
   });
 
-  // BOX badge in bottom-panel header → full-screen running-card modal
+  // BOX badge in bottom-panel header → running-card modal (overlays panel)
   const modal     = document.getElementById('card-modal');
   const modalImg  = document.getElementById('card-modal-img');
   const panelBox  = document.getElementById('panelBox');
+
+  // Pinch-zoom + pan + double-tap state
+  let scale = 1, tx = 0, ty = 0;
+  const MIN_SCALE = 1, MAX_SCALE = 5;
+  function applyTransform() {
+    modalImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+  function resetTransform() {
+    scale = 1; tx = 0; ty = 0; applyTransform();
+  }
+  function clampPan() {
+    // Keep the image roughly within the modal bounds when zoomed in
+    const r = modal.getBoundingClientRect();
+    const ir = modalImg.getBoundingClientRect();
+    const overX = Math.max(0, ir.width  - r.width);
+    const overY = Math.max(0, ir.height - r.height);
+    tx = Math.min(overX / 2, Math.max(-overX / 2, tx));
+    ty = Math.min(overY / 2, Math.max(-overY / 2, ty));
+  }
+
+  // Track active pointers for pinch detection
+  const pointers = new Map();
+  let startDist = 0, startScale = 1;
+  let panStart = null;
+  let lastTap = 0;
+
+  function dist(p1, p2) {
+    const dx = p1.x - p2.x, dy = p1.y - p2.y;
+    return Math.hypot(dx, dy);
+  }
+
+  modal.addEventListener('pointerdown', (e) => {
+    if (e.target === modal || e.target === modalImg) {
+      modal.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 1) {
+        panStart = { x: e.clientX - tx, y: e.clientY - ty };
+        // Double-tap to toggle zoom
+        const now = Date.now();
+        if (now - lastTap < 280) {
+          if (scale > 1) { resetTransform(); }
+          else { scale = 2.5; tx = 0; ty = 0; applyTransform(); }
+        }
+        lastTap = now;
+      } else if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        startDist = dist(a, b);
+        startScale = scale;
+        panStart = null;
+      }
+    }
+  });
+
+  modal.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const d = dist(a, b);
+      if (startDist > 0) {
+        scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * d / startDist));
+        clampPan();
+        applyTransform();
+      }
+    } else if (pointers.size === 1 && panStart && scale > 1) {
+      tx = e.clientX - panStart.x;
+      ty = e.clientY - panStart.y;
+      clampPan();
+      applyTransform();
+    }
+  });
+
+  function onUp(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) startDist = 0;
+    if (pointers.size === 0) panStart = null;
+  }
+  modal.addEventListener('pointerup', onUp);
+  modal.addEventListener('pointercancel', onUp);
+  modal.addEventListener('pointerleave', onUp);
+
   panelBox.addEventListener('click', (e) => {
     e.stopPropagation();  // don't toggle the panel collapse
     const url = panelBox.dataset.url;
     if (!url) return;
     modalImg.src = url;
+    resetTransform();
     modal.classList.add('show');
   });
-  const closeModal = () => modal.classList.remove('show');
+  const closeModal = () => { modal.classList.remove('show'); resetTransform(); };
   document.getElementById('card-modal-close').addEventListener('click', closeModal);
-  modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
   // ── Preload the city-wide building bundle in the background ──
   // First launch downloads ~10 MB; cached forever after. Runs concurrently
@@ -1383,7 +1469,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v32';
+  const ver = 'v33';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
