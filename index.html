@@ -157,31 +157,6 @@
     /* ── Map ── */
     #map { flex: 1; min-height: 0; }
 
-    /* ── Running card thumbnail (bottom-right of map) ── */
-    #running-card {
-      position: fixed;
-      right: 8px; bottom: 56px;            /* sits above the panel header */
-      width: 180px;
-      background: var(--card);
-      border: 1.5px solid var(--red);
-      border-radius: 8px;
-      padding: 4px;
-      z-index: 500;
-      display: none;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-    }
-    #running-card.show { display: block; }
-    #running-card-label {
-      font-size: 10px; font-weight: 800;
-      color: var(--text);
-      padding: 2px 4px 4px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-    #running-card-img {
-      width: 100%; display: block; border-radius: 4px;
-    }
     #card-modal {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.92);
@@ -228,8 +203,19 @@
       border-bottom: 1px solid var(--border);
       cursor: pointer;
     }
-    #panelTitle  { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted); text-transform: uppercase; }
-    #panelCount  { font-size: 12px; font-weight: 600; color: var(--red); }
+    #panelCount  {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--muted); text-transform: uppercase;
+    }
+    #panelBox    {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
+      color: #111; background: #FFD400;
+      padding: 3px 9px; border-radius: 6px;
+      cursor: pointer;
+      display: none;
+    }
+    #panelBox.show { display: inline-block; }
+    #panelBox:active { background: #E8C200; }
     #panelToggle { font-size: 18px; color: var(--muted); transition: transform 0.2s; }
     #panel.collapsed #panelToggle { transform: rotate(180deg); }
     #panel.collapsed #hydrantList { display: none; }
@@ -312,13 +298,6 @@
 
   <div id="map"></div>
 
-  <!-- Running card thumbnail — shown when a Nearest Box is found in the
-       NowForce dispatch text. Tap to open full-screen modal. -->
-  <div id="running-card" role="button" aria-label="View running card">
-    <div id="running-card-label"></div>
-    <img id="running-card-img" alt="Running card">
-  </div>
-
   <!-- Full-screen running-card viewer -->
   <div id="card-modal" role="dialog" aria-label="Running card">
     <button id="card-modal-close" type="button" aria-label="Close">✕</button>
@@ -327,9 +306,9 @@
 
   <div id="panel">
     <div id="panelHeader">
-      <span id="panelTitle">Nearest Hydrants</span>
+      <span id="panelCount"></span>
       <div style="display:flex;align-items:center;gap:10px">
-        <span id="panelCount"></span>
+        <span id="panelBox" role="button" aria-label="Open running card"></span>
         <span id="panelToggle">⌃</span>
       </div>
     </div>
@@ -990,23 +969,28 @@ function parseBoxNumber(text) {
   return m ? m[1] : null;
 }
 
-// Show or hide the running-card thumbnail. Box `null` hides it.
+// Show or hide the running-card UI. Box `null` hides everything.
+// Sets both the bottom-panel "BOX nnnn" badge (clickable) and preloads the
+// modal image. Old floating thumbnail is no longer used.
 function setRunningCard(box) {
-  const wrap = document.getElementById('running-card');
-  const img  = document.getElementById('running-card-img');
-  const lbl  = document.getElementById('running-card-label');
-  if (!box) { wrap.classList.remove('show'); return; }
+  const panelBox = document.getElementById('panelBox');
+  const modalImg = document.getElementById('card-modal-img');
+  if (!box) {
+    panelBox.classList.remove('show');
+    panelBox.dataset.url = '';
+    return;
+  }
   const url = `./running_cards/${box}.png`;
-  // Probe the image; only show if it loads successfully (some boxes may not
-  // have a card on file).
   const probe = new Image();
   probe.onload = () => {
-    lbl.textContent = `BOX ${box}`;
-    img.src = url;
-    wrap.classList.add('show');
+    panelBox.textContent = `BOX ${box}`;
+    panelBox.dataset.url = url;
+    panelBox.classList.add('show');
+    if (modalImg) modalImg.src = url;
   };
   probe.onerror = () => {
-    wrap.classList.remove('show');
+    panelBox.classList.remove('show');
+    panelBox.dataset.url = '';
   };
   probe.src = url;
 }
@@ -1065,15 +1049,15 @@ async function showHydrants(lat, lng, label) {
   }
 
   // Running card — if not already set from clipboard text, look up the
-  // nearest alarm box from coords and show its card.
-  const cardEl = document.getElementById('running-card');
-  if (!cardEl.classList.contains('show')) {
+  // nearest alarm box from coords and show its card badge.
+  const panelBoxEl = document.getElementById('panelBox');
+  if (!panelBoxEl.classList.contains('show')) {
     const trySetFromCoords = () => {
       const box = findNearestBox(lat, lng);
       if (box) setRunningCard(box);
     };
     trySetFromCoords();
-    if (!cardEl.classList.contains('show')) {
+    if (!panelBoxEl.classList.contains('show')) {
       ensureBoxesBundleLoaded().then(ok => { if (ok) trySetFromCoords(); });
     }
   }
@@ -1148,7 +1132,7 @@ async function showHydrants(lat, lng, label) {
       </div>`;
   }).join('');
 
-  document.getElementById('panelCount').textContent = `${hydrants.length} within ${RADIUS_FEET} ft`;
+  document.getElementById('panelCount').textContent = `${hydrants.length} hydrants within ${RADIUS_FEET} ft`;
   document.getElementById('panel').classList.add('open');
   document.getElementById('panel').classList.remove('collapsed');
 
@@ -1253,14 +1237,15 @@ window.initMap = function() {
     setRunningCard(null);
   });
 
-  // Running-card thumbnail → full-screen modal
-  const cardThumb = document.getElementById('running-card');
+  // BOX badge in bottom-panel header → full-screen running-card modal
   const modal     = document.getElementById('card-modal');
   const modalImg  = document.getElementById('card-modal-img');
-  const cardImg   = document.getElementById('running-card-img');
-  cardThumb.addEventListener('click', () => {
-    if (!cardImg.src) return;
-    modalImg.src = cardImg.src;
+  const panelBox  = document.getElementById('panelBox');
+  panelBox.addEventListener('click', (e) => {
+    e.stopPropagation();  // don't toggle the panel collapse
+    const url = panelBox.dataset.url;
+    if (!url) return;
+    modalImg.src = url;
     modal.classList.add('show');
   });
   const closeModal = () => modal.classList.remove('show');
@@ -1397,7 +1382,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v29';
+  const ver = 'v30';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
