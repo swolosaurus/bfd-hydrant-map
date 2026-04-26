@@ -362,6 +362,8 @@ const HYDRANT_BUNDLE_URL  = './boston_hydrants.json.gz';
 const HYDRANT_BUNDLE_VER  = 1;
 const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
 const DISTRICT_BUNDLE_VER = 2;
+const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
+const BOX_BUNDLE_VER      = 1;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -384,6 +386,8 @@ let _allHydrants          = null;
 let _hydrantBundleLoading = null;
 let _allDistricts          = null;
 let _districtBundleLoading = null;
+let _allBoxes              = null;
+let _boxBundleLoading      = null;
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -618,6 +622,50 @@ function preloadBundle() {
   ensureBundleLoaded();
   ensureHydrantsBundleLoaded();
   ensureDistrictsBundleLoaded();
+  ensureBoxesBundleLoaded();
+}
+
+// ─────────────────────────────────────────────
+//  FIRE BOX BUNDLE — 1,850 BFD alarm boxes, ~38 KB gzipped
+// ─────────────────────────────────────────────
+async function ensureBoxesBundleLoaded() {
+  if (_allBoxes) return true;
+  if (_boxBundleLoading) return _boxBundleLoading;
+  _boxBundleLoading = (async () => {
+    const idbKey = `boxes_v${BOX_BUNDLE_VER}`;
+    const cached = await idbGet(idbKey);
+    if (cached && Array.isArray(cached) && cached.length > 100) {
+      _allBoxes = cached;
+      return true;
+    }
+    try {
+      const r = await fetch(BOX_BUNDLE_URL);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const decoded = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const boxes = await new Response(decoded).json();
+      _allBoxes = boxes;
+      idbPut(idbKey, boxes);
+      return true;
+    } catch(e) {
+      console.warn('Box bundle download failed.', e);
+      return false;
+    }
+  })();
+  const ok = await _boxBundleLoading;
+  _boxBundleLoading = null;
+  return ok;
+}
+
+// Find the nearest BFD alarm box to (lat, lng). Returns the box number string
+// or null if the bundle isn't loaded.
+function findNearestBox(lat, lng) {
+  if (!_allBoxes || !_allBoxes.length) return null;
+  let best = null, bestDist = Infinity;
+  for (const b of _allBoxes) {
+    const d = haversine(lat, lng, b.y, b.x);
+    if (d < bestDist) { bestDist = d; best = b; }
+  }
+  return best ? best.n : null;
 }
 
 // ─────────────────────────────────────────────
@@ -1016,6 +1064,20 @@ async function showHydrants(lat, lng, label) {
     });
   }
 
+  // Running card — if not already set from clipboard text, look up the
+  // nearest alarm box from coords and show its card.
+  const cardEl = document.getElementById('running-card');
+  if (!cardEl.classList.contains('show')) {
+    const trySetFromCoords = () => {
+      const box = findNearestBox(lat, lng);
+      if (box) setRunningCard(box);
+    };
+    trySetFromCoords();
+    if (!cardEl.classList.contains('show')) {
+      ensureBoxesBundleLoaded().then(ok => { if (ok) trySetFromCoords(); });
+    }
+  }
+
   // Clear old hydrant markers
   hydrantMarkers.forEach(m => m.setMap(null));
   hydrantMarkers = [];
@@ -1335,7 +1397,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v28';
+  const ver = 'v29';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
