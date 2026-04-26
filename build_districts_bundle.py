@@ -11,7 +11,7 @@ import json
 import urllib.parse
 import urllib.request
 
-URL = "https://gisportal.boston.gov/arcgis/rest/services/PublicSafety/OpenData/MapServer/3/query"
+URL = "https://services.arcgis.com/sFnw0xNflSi8J0uh/arcgis/rest/services/BFD_fire_districts/FeatureServer/0/query"
 PARAMS = {
     "where": "1=1",
     "outFields": "DISTRICT",
@@ -37,7 +37,7 @@ def main():
     for f in raw["features"]:
         district = int(f["attributes"]["DISTRICT"])
         if district == 999:
-            # Skip the dummy "999" district (typically out-of-city / harbor)
+            # Skip any dummy "999" sentinel district
             continue
         rings = f["geometry"]["rings"]
         rings = [round_ring(r) for r in rings]
