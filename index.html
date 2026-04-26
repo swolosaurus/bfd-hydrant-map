@@ -1270,12 +1270,18 @@ window.initMap = function() {
   // Track active pointers for pinch detection
   const pointers = new Map();
   let startDist = 0, startScale = 1;
+  let startTx = 0, startTy = 0;
+  let pinchFocal = null;       // focal point in modal coords at gesture start
+  let pinchImgPoint = null;    // matching point in image-space at gesture start
   let panStart = null;
   let lastTap = 0;
 
   function dist(p1, p2) {
-    const dx = p1.x - p2.x, dy = p1.y - p2.y;
-    return Math.hypot(dx, dy);
+    return Math.hypot(p1.x - p2.x, p1.y - p2.y);
+  }
+
+  function modalRect() {
+    return modal.getBoundingClientRect();
   }
 
   modal.addEventListener('pointerdown', (e) => {
@@ -1284,17 +1290,41 @@ window.initMap = function() {
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 1) {
         panStart = { x: e.clientX - tx, y: e.clientY - ty };
-        // Double-tap to toggle zoom
         const now = Date.now();
         if (now - lastTap < 280) {
-          if (scale > 1) { resetTransform(); }
-          else { scale = 2.5; tx = 0; ty = 0; applyTransform(); }
+          // Double-tap zooms toward the tap point
+          if (scale > 1) {
+            resetTransform();
+          } else {
+            const r = modalRect();
+            const fx = e.clientX - r.left;
+            const fy = e.clientY - r.top;
+            const newScale = 2.5;
+            // Keep the tapped pixel under the finger
+            tx = fx - (fx / scale) * newScale;
+            ty = fy - (fy / scale) * newScale;
+            scale = newScale;
+            clampPan();
+            applyTransform();
+          }
         }
         lastTap = now;
       } else if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         startDist = dist(a, b);
         startScale = scale;
+        startTx = tx; startTy = ty;
+        const r = modalRect();
+        // Midpoint between fingers, in modal-local coords
+        pinchFocal = {
+          x: (a.x + b.x) / 2 - r.left,
+          y: (a.y + b.y) / 2 - r.top,
+        };
+        // Same point in image-local coords (pre-transform)
+        pinchImgPoint = {
+          x: (pinchFocal.x - tx) / scale,
+          y: (pinchFocal.y - ty) / scale,
+        };
         panStart = null;
       }
     }
@@ -1303,11 +1333,21 @@ window.initMap = function() {
   modal.addEventListener('pointermove', (e) => {
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2) {
+    if (pointers.size === 2 && pinchFocal && pinchImgPoint) {
       const [a, b] = [...pointers.values()];
       const d = dist(a, b);
       if (startDist > 0) {
-        scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * d / startDist));
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * d / startDist));
+        const r = modalRect();
+        // Track the focal point as fingers move (allows simultaneous pan)
+        const focal = {
+          x: (a.x + b.x) / 2 - r.left,
+          y: (a.y + b.y) / 2 - r.top,
+        };
+        // Solve for tx,ty so the original image point stays under the focal point
+        tx = focal.x - pinchImgPoint.x * newScale;
+        ty = focal.y - pinchImgPoint.y * newScale;
+        scale = newScale;
         clampPan();
         applyTransform();
       }
@@ -1321,7 +1361,10 @@ window.initMap = function() {
 
   function onUp(e) {
     pointers.delete(e.pointerId);
-    if (pointers.size < 2) startDist = 0;
+    if (pointers.size < 2) {
+      startDist = 0;
+      pinchFocal = pinchImgPoint = null;
+    }
     if (pointers.size === 0) panStart = null;
   }
   modal.addEventListener('pointerup', onUp);
@@ -1469,7 +1512,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v33';
+  const ver = 'v34';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
