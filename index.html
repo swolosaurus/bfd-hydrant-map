@@ -755,7 +755,11 @@ function search() {
       return;
     }
     const loc = results[0].geometry.location;
-    showHydrants(loc.lat(), loc.lng(), addr);
+    // Strip ", Boston, MA, USA" tail before display (parseNowForce adds it
+    // for the geocoder, but it's noise in the UI).
+    const display = prettifyAddress(addr);
+    document.getElementById('addressInput').value = display;
+    showHydrants(loc.lat(), loc.lng(), display);
   });
 }
 
@@ -810,13 +814,25 @@ async function runLatLngSearch(latlng, opts = {}) {
   });
 }
 
-// Strip "Boston, MA <ZIP>, USA" tail from a Google-formatted address.
-// Everything from the city onward is dropped — the app is Boston-only, so
-// city/state/country/zip are noise. Keeps any building name that comes
-// before the street ("Logan International Airport, ...", "Boston Common, ...").
+// Strip "Boston, MA <ZIP>, USA" tail from any address string. The app is
+// Boston-only, so city/state/country/zip are noise. Keeps any building name
+// that comes before the street ("Logan International Airport, ...",
+// "Boston Common, 139 Tremont St").
 function prettifyAddress(s) {
   if (!s) return s;
-  const cut = s.split(/,\s*Boston\b/i)[0];
+  // 1) Cut at first ", Boston" boundary if present (most common path)
+  let cut = s.split(/,\s*Boston\b/i)[0];
+  // 2) If nothing was cut, peel off trailing MA / USA / ZIP / Boston tokens
+  if (cut === s) {
+    const parts = s.split(',').map(p => p.trim()).filter(Boolean);
+    while (parts.length > 1) {
+      const last = parts[parts.length - 1];
+      if (/^(boston|ma|massachusetts|usa|united\s+states|\d{5}(-\d{4})?)$/i.test(last)) {
+        parts.pop();
+      } else break;
+    }
+    cut = parts.join(', ');
+  }
   return cut.trim();
 }
 
@@ -1172,7 +1188,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v24';
+  const ver = 'v25';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
