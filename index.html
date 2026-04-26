@@ -1352,13 +1352,11 @@ window.initMap = function() {
         tx = focal.x - pinchImgPoint.x * newScale;
         ty = focal.y - pinchImgPoint.y * newScale;
         scale = newScale;
-        clampPan();
-        applyTransform();
+        applyTransform();   // clamp on gesture end, not during
       }
     } else if (pointers.size === 1 && panStart && scale > 1) {
       tx = e.clientX - panStart.x;
       ty = e.clientY - panStart.y;
-      clampPan();
       applyTransform();
     }
   });
@@ -1369,7 +1367,17 @@ window.initMap = function() {
       startDist = 0;
       pinchFocal = pinchImgPoint = null;
     }
-    if (pointers.size === 0) panStart = null;
+    if (pointers.size === 1) {
+      // Lifting one finger after pinch — hand off to pan with the remaining finger
+      const [p] = [...pointers.values()];
+      panStart = { x: p.x - tx, y: p.y - ty };
+    }
+    if (pointers.size === 0) {
+      panStart = null;
+      // Apply loose clamp once gesture is finished, then animate back if needed
+      clampPan();
+      applyTransform();
+    }
   }
   modal.addEventListener('pointerup', onUp);
   modal.addEventListener('pointercancel', onUp);
@@ -1516,7 +1524,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v35';
+  const ver = 'v36';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
