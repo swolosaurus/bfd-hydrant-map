@@ -1342,15 +1342,20 @@ window.initMap = function() {
       const d = dist(a, b);
       if (startDist > 0) {
         const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * d / startDist));
-        const r = modalRect();
-        const focal = {
-          x: (a.x + b.x) / 2 - r.left,
-          y: (a.y + b.y) / 2 - r.top,
-        };
-        tx = focal.x - pinchImgPoint.x * newScale;
-        ty = focal.y - pinchImgPoint.y * newScale;
-        scale = newScale;
-        clampPan();
+        if (newScale <= MIN_SCALE + 0.01) {
+          // Pinching out below 1× — recenter (image fits flush to viewport)
+          scale = MIN_SCALE; tx = 0; ty = 0;
+        } else {
+          const r = modalRect();
+          const focal = {
+            x: (a.x + b.x) / 2 - r.left,
+            y: (a.y + b.y) / 2 - r.top,
+          };
+          tx = focal.x - pinchImgPoint.x * newScale;
+          ty = focal.y - pinchImgPoint.y * newScale;
+          scale = newScale;
+          clampPan();
+        }
         applyTransform();
       }
     } else if (pointers.size === 1 && panStart && scale > 1) {
@@ -1514,7 +1519,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v37';
+  const ver = 'v38';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
