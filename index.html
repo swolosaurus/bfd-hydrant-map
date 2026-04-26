@@ -814,10 +814,11 @@ async function runLatLngSearch(latlng, opts = {}) {
   });
 }
 
-// Strip "Boston, MA <ZIP>, USA" tail from any address string. The app is
+// Strip "Boston, MA <ZIP>, USA" tail and title-case the result. The app is
 // Boston-only, so city/state/country/zip are noise. Keeps any building name
 // that comes before the street ("Logan International Airport, ...",
-// "Boston Common, 139 Tremont St").
+// "Boston Common, 139 Tremont St"). Uppercase NowForce text like
+// "27 OLIVER ST" becomes "27 Oliver St".
 function prettifyAddress(s) {
   if (!s) return s;
   // 1) Cut at first ", Boston" boundary if present (most common path)
@@ -833,7 +834,13 @@ function prettifyAddress(s) {
     }
     cut = parts.join(', ');
   }
-  return cut.trim();
+  return titleCase(cut.trim());
+}
+
+// "27 OLIVER ST" → "27 Oliver St". Keeps digits, ordinals, and acronyms readable.
+function titleCase(s) {
+  return s.replace(/[A-Za-z][A-Za-z']*/g,
+    w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 // ─────────────────────────────────────────────
@@ -1188,7 +1195,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v25';
+  const ver = 'v26';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
