@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="BFD Hydrants">
+  <meta name="apple-mobile-web-app-title" content="Hydrant Map">
   <meta name="theme-color" content="#C8102E">
-  <title>BFD Hydrant Map</title>
+  <title>Hydrant Map</title>
   <link rel="manifest" href="manifest.json">
 
   <style>
@@ -55,6 +55,17 @@
     #header-left { display: flex; align-items: center; gap: 10px; }
     #header h1  { font-size: 17px; font-weight: 800; letter-spacing: 1.5px; }
     #header sub { font-size: 10px; opacity: 0.75; letter-spacing: 0.8px; display: block; margin-top: 1px; }
+    #header-right {
+      display: flex; align-items: center; gap: 6px;
+    }
+    #district-badge {
+      font-size: 13px; font-weight: 800; letter-spacing: 0.5px;
+      background: #FFD400; color: #111;
+      padding: 4px 8px; border-radius: 6px;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+      display: none;
+    }
+    #district-badge.show { display: block; }
     #incident-label {
       font-size: 11px; font-weight: 600;
       background: rgba(255,255,255,0.2);
@@ -204,11 +215,14 @@
   <div id="header">
     <div id="header-left">
       <div>
-        <h1>🚒 BFD HYDRANT MAP</h1>
+        <h1>🚒 HYDRANT MAP</h1>
         <sub>BOSTON FIRE DEPARTMENT</sub>
       </div>
     </div>
-    <div id="incident-label"></div>
+    <div id="header-right">
+      <div id="district-badge"></div>
+      <div id="incident-label"></div>
+    </div>
   </div>
 
   <div id="searchbar">
@@ -792,20 +806,28 @@ async function showHydrants(lat, lng, label) {
   });
   incidentMarker.addListener('click', () => showIncidentInfo(lat, lng, label));
 
-  // Header label — prepend BFD district (e.g. "D1  72 Lubec St")
+  // Header label + separate district badge
   const shortLabel = label.length > 35 ? label.slice(0, 34) + '…' : label;
   const hdr = document.getElementById('incident-label');
-  const districtNow = findDistrict(lat, lng);
-  hdr.textContent = districtNow != null
-    ? `D${districtNow}  ${shortLabel}`
-    : shortLabel;
+  hdr.textContent = shortLabel;
   hdr.classList.add('show');
+
+  const badge = document.getElementById('district-badge');
+  const setDistrict = (d) => {
+    if (d == null) {
+      badge.classList.remove('show');
+      badge.textContent = '';
+    } else {
+      badge.textContent = `D${d}`;
+      badge.classList.add('show');
+    }
+  };
+  setDistrict(findDistrict(lat, lng));
   // If bundle wasn't loaded yet, retry once it lands
-  if (districtNow == null) {
+  if (!badge.classList.contains('show')) {
     ensureDistrictsBundleLoaded().then(ok => {
       if (!ok) return;
-      const d = findDistrict(lat, lng);
-      if (d != null) hdr.textContent = `D${d}  ${shortLabel}`;
+      setDistrict(findDistrict(lat, lng));
     });
   }
 
@@ -1108,7 +1130,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v19';
+  const ver = 'v20';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
