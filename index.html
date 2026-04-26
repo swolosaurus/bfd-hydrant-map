@@ -759,14 +759,40 @@ function search() {
 // Reverse-geocode lat,lng → prefer street_address result, fall back to first
 // result. Hides raw coords from the user; populates input with the resolved
 // street address once Google responds.
-function runLatLngSearch(latlng) {
+//
+// If the clipboard contains a NowForce-style address (the user typically has
+// the dispatch text copied right before tapping "open with…"), prefer THAT
+// for the display label — Google's reverse-geocoder often returns a nearby
+// but wrong building when multiple addresses share a corner. The lat/lng
+// from NowForce is still used for the map center / hydrant query, so the pin
+// stays exact even when the label comes from clipboard text.
+async function runLatLngSearch(latlng) {
   const [latStr, lngStr] = latlng.split(',');
   const lat = parseFloat(latStr), lng = parseFloat(lngStr);
   showLoad('Looking up address…');
+
+  // Try the clipboard first — async, but cheap if the user already copied
+  // the dispatch.
+  let clipLabel = null;
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text && looksLikeNowForce(text)) {
+        clipLabel = parseNowForce(text);
+      }
+    }
+  } catch(e) { /* permission denied or no clipboard — fall back to geocode */ }
+
+  if (clipLabel) {
+    document.getElementById('addressInput').value = prettifyAddress(clipLabel);
+    showHydrants(lat, lng, prettifyAddress(clipLabel));
+    return;
+  }
+
+  // No usable clipboard text — reverse-geocode the coords.
   geocoder.geocode({ location: { lat, lng } }, (results, status) => {
     let label = latlng;
     if (status === 'OK' && results.length) {
-      // Prefer the most precise street_address result; fall back to first.
       const best =
         results.find(r => r.types && r.types.includes('street_address')) ||
         results.find(r => r.types && r.types.includes('premise')) ||
@@ -1140,7 +1166,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v22';
+  const ver = 'v23';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
