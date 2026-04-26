@@ -771,11 +771,21 @@ function runLatLngSearch(latlng) {
         results.find(r => r.types && r.types.includes('street_address')) ||
         results.find(r => r.types && r.types.includes('premise')) ||
         results[0];
-      label = best.formatted_address || latlng;
+      label = prettifyAddress(best.formatted_address || latlng);
     }
     document.getElementById('addressInput').value = label;
     showHydrants(lat, lng, label);
   });
+}
+
+// Strip "Boston, MA <ZIP>, USA" tail from a Google-formatted address.
+// Everything from the city onward is dropped — the app is Boston-only, so
+// city/state/country/zip are noise. Keeps any building name that comes
+// before the street ("Logan International Airport, ...", "Boston Common, ...").
+function prettifyAddress(s) {
+  if (!s) return s;
+  const cut = s.split(/,\s*Boston\b/i)[0];
+  return cut.trim();
 }
 
 // ─────────────────────────────────────────────
@@ -1130,7 +1140,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v20';
+  const ver = 'v21';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
