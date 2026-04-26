@@ -127,7 +127,6 @@
       cursor: pointer; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    #pasteBtn { background: var(--card); color: var(--text); border: 1.5px solid var(--border); font-size: 19px; }
     #locBtn   { background: var(--card); color: var(--text); border: 1.5px solid var(--border); font-size: 19px; }
 
     /* ── Status bar ── */
@@ -290,11 +289,10 @@
              autocapitalize="off" spellcheck="false">
       <button id="clearBtn" type="button" aria-label="Clear address">✕</button>
     </div>
-    <button class="btn" id="pasteBtn" title="Paste from clipboard">📋</button>
     <button class="btn" id="locBtn"   title="Use my GPS location">📍</button>
   </div>
 
-  <div id="statusBar">Paste address (📋), tap 📍 for GPS, or tap ✕ to clear and type</div>
+  <div id="statusBar">Tap 📍 for current location, or type / paste an address</div>
 
   <div id="map"></div>
 
@@ -1225,7 +1223,6 @@ window.initMap = function() {
   });
 
   // ── Event listeners ──
-  document.getElementById('pasteBtn').addEventListener('click', pasteClipboard);
   document.getElementById('locBtn').addEventListener('click', useLocation);
   const inputEl = document.getElementById('addressInput');
   inputEl.addEventListener('keydown', e => {
@@ -1382,7 +1379,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v30';
+  const ver = 'v31';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
