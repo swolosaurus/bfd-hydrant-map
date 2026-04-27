@@ -826,7 +826,8 @@ async function pasteClipboard() {
     const text = await navigator.clipboard.readText();
     if (!text) { setStatus('Clipboard is empty'); return; }
     document.getElementById('addressInput').value = text;
-    setRunningCard(parseBoxNumber(text));
+    const box = parseBoxNumber(text);
+    if (box) setRunningCard(box, { explicit: true });
     search();
   } catch(e) {
     // Fallback: focus input so user can manually paste
@@ -915,7 +916,7 @@ async function runLatLngSearch(latlng, opts = {}) {
       }
     } catch(e) { /* permission denied or no clipboard — fall back to geocode */ }
   }
-  setRunningCard(clipBox);
+  if (clipBox) setRunningCard(clipBox, { explicit: true });
 
   if (clipLabel) {
     document.getElementById('addressInput').value = prettifyAddress(clipLabel);
@@ -976,28 +977,46 @@ function parseBoxNumber(text) {
   return m ? m[1] : null;
 }
 
-// Show or hide the running-card UI. Box `null` hides everything.
-// Sets both the bottom-panel "BOX nnnn" badge (clickable) and preloads the
-// modal image. Old floating thumbnail is no longer used.
-function setRunningCard(box) {
+// Currently displayed box (synchronous state) and whether it was set
+// explicitly (e.g., from clipboard). Used to prevent the geo-nearest
+// fallback in showHydrants from overriding an explicit choice.
+let _currentBox = null;
+let _explicitBox = false;
+
+function setRunningCard(box, opts = {}) {
   const panelBox = document.getElementById('panelBox');
   const modalImg = document.getElementById('card-modal-img');
   if (!box) {
+    _currentBox = null;
+    _explicitBox = false;
     panelBox.classList.remove('show');
     panelBox.dataset.url = '';
     return;
   }
+  // Don't let an implicit (geo-nearest) call clobber an explicit one.
+  if (!opts.explicit && _explicitBox) return;
+  // No-op if the same box is already selected.
+  if (_currentBox === box) return;
+  _currentBox = box;
+  _explicitBox = !!opts.explicit;
+
   const url = `./running_cards/${box}.png`;
   const probe = new Image();
   probe.onload = () => {
+    // Bail if a newer call has changed the current box while we waited.
+    if (_currentBox !== box) return;
     panelBox.textContent = `BOX ${box}`;
     panelBox.dataset.url = url;
     panelBox.classList.add('show');
     if (modalImg) modalImg.src = url;
   };
   probe.onerror = () => {
+    if (_currentBox !== box) return;
     panelBox.classList.remove('show');
     panelBox.dataset.url = '';
+    // Clearing _currentBox so a follow-up geo-nearest call can fill in.
+    _currentBox = null;
+    _explicitBox = false;
   };
   probe.src = url;
 }
@@ -1055,16 +1074,15 @@ async function showHydrants(lat, lng, label) {
     });
   }
 
-  // Running card — if not already set from clipboard text, look up the
-  // nearest alarm box from coords and show its card badge.
-  const panelBoxEl = document.getElementById('panelBox');
-  if (!panelBoxEl.classList.contains('show')) {
+  // Running card — if clipboard didn't supply an explicit box, look up the
+  // nearest alarm box from coords (synchronous check, no DOM race).
+  if (!_explicitBox) {
     const trySetFromCoords = () => {
       const box = findNearestBox(lat, lng);
-      if (box) setRunningCard(box);
+      if (box) setRunningCard(box);   // implicit — won't override explicit
     };
     trySetFromCoords();
-    if (!panelBoxEl.classList.contains('show')) {
+    if (!_currentBox) {
       ensureBoxesBundleLoaded().then(ok => { if (ok) trySetFromCoords(); });
     }
   }
@@ -1457,7 +1475,8 @@ window.initMap = function() {
       const input = document.getElementById('addressInput');
       if (input.value.trim()) return;          // don't overwrite manual entry
       input.value = text;
-      setRunningCard(parseBoxNumber(text));
+      const box = parseBoxNumber(text);
+      if (box) setRunningCard(box, { explicit: true });
       if (looksLikeNowForce(text) || /^\d{1,5}\s+[A-Za-z]/i.test(text.trim())) {
         search();
       }
@@ -1519,7 +1538,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v38';
+  const ver = 'v39';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
