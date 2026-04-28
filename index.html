@@ -224,6 +224,31 @@
     }
     #panelBox.show { display: inline-block; }
     #panelBox:active { background: #E8C200; }
+
+    /* "First 3 due" mini-table — shown above the hydrant list when card data
+       is available for the current box. */
+    #dueList {
+      display: none;
+      padding: 6px 12px 4px;
+      border-bottom: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    #dueList.show { display: block; }
+    #dueList .due-row { display: flex; gap: 8px; align-items: baseline; }
+    #dueList .due-tag {
+      flex: 0 0 32px;
+      font-weight: 800; color: var(--red); letter-spacing: 0.5px;
+    }
+    #dueList .due-cells { flex: 1; min-width: 0; color: var(--text); }
+    #dueList .due-cells span + span::before {
+      content: ' · '; color: var(--muted);
+    }
+    #dueList .due-eng { color: #FF6B6B; font-weight: 700; }
+    #dueList .due-lad { color: #FFD400; font-weight: 700; }
+    #dueList .due-spc { color: #4FC3F7; }
+    #dueList .due-chf { color: #FFFFFF; }
     #panelToggle { font-size: 18px; color: var(--muted); transition: transform 0.2s; }
     #panel.collapsed #panelToggle { transform: rotate(180deg); }
     #panel.collapsed #hydrantList { display: none; }
@@ -313,6 +338,7 @@
         <span id="panelToggle">⌃</span>
       </div>
     </div>
+    <div id="dueList" aria-label="First three due"></div>
     <div id="hydrantList"></div>
 
     <!-- Running-card viewer overlays only the hydrant list area -->
@@ -350,6 +376,8 @@ const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
 const DISTRICT_BUNDLE_VER = 2;
 const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
 const BOX_BUNDLE_VER      = 1;
+const CARDS_BUNDLE_URL    = './running_cards.json.gz';
+const CARDS_BUNDLE_VER    = 1;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -375,6 +403,8 @@ let _allDistricts          = null;
 let _districtBundleLoading = null;
 let _allBoxes              = null;
 let _boxBundleLoading      = null;
+let _runningCards          = null;
+let _cardsBundleLoading    = null;
 
 // ─────────────────────────────────────────────
 //  ADDRESS PARSING  (NowForce → geocodable string)
@@ -610,6 +640,38 @@ function preloadBundle() {
   ensureHydrantsBundleLoaded();
   ensureDistrictsBundleLoaded();
   ensureBoxesBundleLoaded();
+  ensureRunningCardsBundleLoaded();
+}
+
+// ─────────────────────────────────────────────
+//  RUNNING CARDS BUNDLE — 1971 BFD running cards as structured JSON
+// ─────────────────────────────────────────────
+async function ensureRunningCardsBundleLoaded() {
+  if (_runningCards) return true;
+  if (_cardsBundleLoading) return _cardsBundleLoading;
+  _cardsBundleLoading = (async () => {
+    const idbKey = `running_cards_v${CARDS_BUNDLE_VER}`;
+    const cached = await idbGet(idbKey);
+    if (cached && typeof cached === 'object' && Object.keys(cached).length > 100) {
+      _runningCards = cached;
+      return true;
+    }
+    try {
+      const r = await fetch(CARDS_BUNDLE_URL);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const decoded = r.body.pipeThrough(new DecompressionStream('gzip'));
+      const cards = await new Response(decoded).json();
+      _runningCards = cards;
+      idbPut(idbKey, cards);
+      return true;
+    } catch(e) {
+      console.warn('Running cards bundle download failed.', e);
+      return false;
+    }
+  })();
+  const ok = await _cardsBundleLoading;
+  _cardsBundleLoading = null;
+  return ok;
 }
 
 // ─────────────────────────────────────────────
@@ -1034,11 +1096,10 @@ function setRunningCard(box, opts = {}) {
     _explicitBox = false;
     panelBox.classList.remove('show');
     panelBox.dataset.url = '';
+    renderDueList(null);
     return;
   }
-  // Don't let an implicit (geo-nearest) call clobber an explicit one.
   if (!opts.explicit && _explicitBox) return;
-  // No-op if the same box is already selected.
   if (_currentBox === box) return;
   _currentBox = box;
   _explicitBox = !!opts.explicit;
@@ -1046,7 +1107,6 @@ function setRunningCard(box, opts = {}) {
   const url = `./running_cards/${box}.png`;
   const probe = new Image();
   probe.onload = () => {
-    // Bail if a newer call has changed the current box while we waited.
     if (_currentBox !== box) return;
     panelBox.textContent = `BOX ${box}`;
     panelBox.dataset.url = url;
@@ -1057,11 +1117,54 @@ function setRunningCard(box, opts = {}) {
     if (_currentBox !== box) return;
     panelBox.classList.remove('show');
     panelBox.dataset.url = '';
-    // Clearing _currentBox so a follow-up geo-nearest call can fill in.
     _currentBox = null;
     _explicitBox = false;
   };
   probe.src = url;
+
+  // Show structured first-3-due data from the cards bundle (if loaded).
+  // If bundle isn't loaded yet, kick it off and retry once.
+  const tryRender = () => {
+    if (_currentBox !== box) return;  // box changed under us
+    if (!_runningCards) return;
+    renderDueList(_runningCards[box] || null);
+  };
+  tryRender();
+  if (!_runningCards) {
+    ensureRunningCardsBundleLoaded().then(ok => { if (ok) tryRender(); });
+  }
+}
+
+// Render the "1ST / 2ND / 3RD due" compact panel from a parsed card record.
+function renderDueList(card) {
+  const el = document.getElementById('dueList');
+  if (!el) return;
+  if (!card || !Array.isArray(card.respond_to_fire)) {
+    el.classList.remove('show');
+    el.innerHTML = '';
+    return;
+  }
+  // Pick the 1st / 2nd / 3rd alarm rows (skip "SS" striking-still).
+  const wanted = ['1ST', '2ND', '3RD'];
+  const rows = wanted
+    .map(tag => card.respond_to_fire.find(r => (r.alarm || '').toUpperCase() === tag))
+    .filter(Boolean);
+  if (!rows.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
+
+  const fmt = (arr, cls) =>
+    (arr && arr.length) ? `<span class="${cls}">${arr.join(' ')}</span>` : '';
+  el.innerHTML = rows.map(r => `
+    <div class="due-row">
+      <div class="due-tag">${r.alarm}</div>
+      <div class="due-cells">
+        ${fmt(r.engine,  'due-eng')}
+        ${fmt(r.ladder,  'due-lad')}
+        ${fmt(r.special, 'due-spc')}
+        ${fmt(r.chief,   'due-chf')}
+      </div>
+    </div>
+  `).join('');
+  el.classList.add('show');
 }
 
 // ─────────────────────────────────────────────
@@ -1583,7 +1686,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v40';
+  const ver = 'v41';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;

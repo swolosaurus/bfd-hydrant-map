@@ -3,5 +3,7 @@ boston_buildings.json
 boston_hydrants.json
 boston_districts.json
 boston_boxes.json
+running_cards.json
+ocr_progress.jsonl
 build_log.txt
 __pycache__/
