@@ -1,4 +1,4 @@
-const CACHE = 'bfd-hydrants-v39';
+const CACHE = 'bfd-hydrants-v40';
 const SHELL = ['./','./index.html','./manifest.json'];
 
 self.addEventListener('install', e => {

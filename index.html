@@ -358,6 +358,7 @@ const BUILDING_RADIUS_FEET = 350;
 // ─────────────────────────────────────────────
 let map, geocoder, incidentMarker, infoWindow;
 let hydrantMarkers   = [];
+let boxMarkers       = [];
 let hydrantsData     = [];
 let buildingPolygons = [];
 let lastLat = null, lastLng = null, lastAddr = '';
@@ -652,6 +653,48 @@ function findNearestBox(lat, lng) {
     if (d < bestDist) { bestDist = d; best = b; }
   }
   return best ? best.n : null;
+}
+
+// Draw all alarm boxes within `radiusFeet` of (lat, lng) as green dots so the
+// user can see box density and how far the actual dispatcher's box is from
+// the geo-nearest one.
+const BOX_OVERLAY_RADIUS_FEET = 4000;  // ~3/4 mile
+function drawBoxesOverlay(lat, lng) {
+  // Clear old markers
+  boxMarkers.forEach(m => m.setMap(null));
+  boxMarkers = [];
+  if (!_allBoxes || !_allBoxes.length) return;
+
+  const dLat = BOX_OVERLAY_RADIUS_FEET / 364000;
+  const dLng = dLat / Math.cos(lat * Math.PI / 180);
+  const minLat = lat - dLat, maxLat = lat + dLat;
+  const minLng = lng - dLng, maxLng = lng + dLng;
+
+  for (const b of _allBoxes) {
+    if (b.y < minLat || b.y > maxLat || b.x < minLng || b.x > maxLng) continue;
+    const m = new google.maps.Marker({
+      position: { lat: b.y, lng: b.x },
+      map,
+      title: `Box ${b.n}`,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 6,
+        fillColor: '#00C853',
+        fillOpacity: 0.9,
+        strokeColor: '#003B14',
+        strokeWeight: 1,
+      },
+      label: {
+        text: String(b.n),
+        fontSize: '9px',
+        fontWeight: '700',
+        color: '#fff',
+      },
+      zIndex: 50,
+      optimized: true,
+    });
+    boxMarkers.push(m);
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -1076,15 +1119,17 @@ async function showHydrants(lat, lng, label) {
 
   // Running card — if clipboard didn't supply an explicit box, look up the
   // nearest alarm box from coords (synchronous check, no DOM race).
-  if (!_explicitBox) {
-    const trySetFromCoords = () => {
+  // Also draw all nearby boxes as a green-dot overlay for visual debugging.
+  const updateBoxes = () => {
+    drawBoxesOverlay(lat, lng);
+    if (!_explicitBox) {
       const box = findNearestBox(lat, lng);
       if (box) setRunningCard(box);   // implicit — won't override explicit
-    };
-    trySetFromCoords();
-    if (!_currentBox) {
-      ensureBoxesBundleLoaded().then(ok => { if (ok) trySetFromCoords(); });
     }
+  };
+  updateBoxes();
+  if (!_allBoxes) {
+    ensureBoxesBundleLoaded().then(ok => { if (ok) updateBoxes(); });
   }
 
   // Clear old hydrant markers
@@ -1538,7 +1583,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v39';
+  const ver = 'v40';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
