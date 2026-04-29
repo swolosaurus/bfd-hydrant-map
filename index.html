@@ -199,9 +199,24 @@
       flex-direction: column;
       transform: translateY(100%);
       transition: transform 0.3s ease;
-      padding-bottom: env(safe-area-inset-bottom);
       position: relative;  /* so the running-card modal overlays only the panel */
     }
+
+    /* ── Ad slot (very bottom, always reserved) ── */
+    #adSlot {
+      flex-shrink: 0;
+      min-height: 50px;
+      background: #1A1A1C;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #adSlot:empty::before { content: ''; }
     #panel.open { transform: translateY(0); }
 
     #panelHeader {
@@ -225,28 +240,30 @@
     #panelBox.show { display: inline-block; }
     #panelBox:active { background: #E8C200; }
 
-    /* "First 3 due" mini-table — columns aligned across rows.
-       grid columns: alarm | engine | ladder | special | chief */
+    /* Panel body: hydrant list on left, due-list on right (bottom-right quad) */
+    #panelBody {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+    #hydrantList { flex: 1; min-width: 0; overflow-y: auto; }
     #dueList {
+      flex: 0 0 50%;
+      max-width: 50%;
       display: none;
-      padding: 6px 12px 4px;
-      border-bottom: 1px solid var(--border);
+      padding: 6px 10px 8px;
+      border-left: 1px solid var(--border);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
       font-size: 11px;
       line-height: 1.45;
-      overflow-x: auto;            /* allow horizontal scroll if codes are long */
+      overflow: auto;
     }
     #dueList.show { display: block; }
     #dueList .due-grid {
       display: grid;
-      grid-template-columns:
-        36px                      /* alarm */
-        minmax(110px, max-content) /* engine */
-        minmax(70px,  max-content) /* ladder */
-        minmax(70px,  max-content) /* special */
-        minmax(60px,  max-content) /* chief */;
-      column-gap: 12px;
-      row-gap: 2px;
+      grid-template-columns: 28px max-content max-content max-content max-content;
+      column-gap: 8px;
+      row-gap: 3px;
       align-items: baseline;
       white-space: nowrap;
     }
@@ -347,8 +364,10 @@
         <span id="panelToggle">⌃</span>
       </div>
     </div>
-    <div id="dueList" aria-label="First three due"></div>
-    <div id="hydrantList"></div>
+    <div id="panelBody">
+      <div id="hydrantList"></div>
+      <div id="dueList" aria-label="First three due"></div>
+    </div>
 
     <!-- Running-card viewer overlays only the hydrant list area -->
     <div id="card-modal" role="dialog" aria-label="Running card">
@@ -356,6 +375,9 @@
       <img id="card-modal-img" alt="Running card">
     </div>
   </div>
+
+  <!-- Reserved ad strip at the very bottom (always visible). -->
+  <div id="adSlot" aria-hidden="true"></div>
 
 </div>
 
@@ -1695,7 +1717,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v43';
+  const ver = 'v44';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
