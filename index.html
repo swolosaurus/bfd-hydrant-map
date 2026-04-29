@@ -1144,8 +1144,8 @@ function renderDueList(card) {
     el.innerHTML = '';
     return;
   }
-  // Pick the 1st / 2nd / 3rd alarm rows (skip "SS" striking-still).
-  const wanted = ['1ST', '2ND', '3RD'];
+  // Pick the 1st / SS (striking-still) / 2nd / 3rd alarm rows in order.
+  const wanted = ['1ST', 'SS', '2ND', '3RD'];
   const rows = wanted
     .map(tag => card.respond_to_fire.find(r => (r.alarm || '').toUpperCase() === tag))
     .filter(Boolean);
@@ -1686,7 +1686,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v41';
+  const ver = 'v42';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
