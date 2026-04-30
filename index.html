@@ -194,7 +194,7 @@
       background: var(--panel);
       border-top: 2px solid var(--red);
       flex-shrink: 0;
-      max-height: 38vh;
+      max-height: 40vh;
       display: flex;
       flex-direction: column;
       transform: translateY(100%);
@@ -251,32 +251,31 @@
       flex: 0 0 56%;
       max-width: 56%;
       display: none;
-      padding: 6px 10px 8px;
+      padding: 4px 8px 6px;
       border-left: 1px solid var(--border);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-      font-size: 11px;
-      line-height: 1.45;
+      font-size: 10px;
+      line-height: 1.25;
       overflow: auto;
     }
     #dueList.show { display: block; }
-    /* Each alarm = a block with the tag in col 1 (vertically centered across
-       4 lines), and engine/ladder/special/chief stacked in col 2. */
+    /* Each alarm = a block with the tag in col 1, lines stacked in col 2. */
     #dueList .alarm-block {
       display: grid;
-      grid-template-columns: 32px 1fr;
-      column-gap: 8px;
-      row-gap: 1px;
-      margin-bottom: 8px;
+      grid-template-columns: 28px 1fr;
+      column-gap: 6px;
+      row-gap: 0;
+      margin-bottom: 4px;
     }
     #dueList .alarm-block:last-child { margin-bottom: 0; }
     #dueList .alarm-block .due-tag {
       grid-column: 1;
-      grid-row: 1;            /* sits on the same line as the engine row */
-      font-size: 13px;
+      grid-row: 1;
+      font-size: 11px;
     }
     #dueList .alarm-block > div:not(.due-tag) {
       grid-column: 2;
-      word-spacing: 2px;
+      word-spacing: 1px;
       overflow-wrap: anywhere;
     }
     #dueList .due-tag {
@@ -1739,7 +1738,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v49';
+  const ver = 'v50';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
