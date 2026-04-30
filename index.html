@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Hydrant Map">
-  <meta name="theme-color" content="#C8102E">
+  <meta name="theme-color" content="#000000">
   <title>Hydrant Map</title>
   <link rel="manifest" href="manifest.json">
 
@@ -219,12 +219,27 @@
     #adSlot:empty::before { content: ''; }
     #panel.open { transform: translateY(0); }
 
+    /* Two-cell header that mirrors panelBody widths so BOX badge sits centered
+       above the due-list column. */
     #panelHeader {
-      padding: 8px 14px;
-      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0;
+      display: flex;
       flex-shrink: 0;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
+    }
+    #panelHeaderLeft {
+      flex: 1;
+      min-width: 0;
+      padding: 0 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #panelHeaderRight {
+      flex: 0 0 56%;            /* matches #dueList width */
+      max-width: 56%;
+      padding: 0 8px;
+      border-left: 1px solid var(--border);
+      display: flex; justify-content: center; align-items: center;
     }
     #panelCount  {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
@@ -369,10 +384,12 @@
 
   <div id="panel">
     <div id="panelHeader">
-      <span id="panelCount"></span>
-      <div style="display:flex;align-items:center;gap:10px">
-        <span id="panelBox" role="button" aria-label="Open running card"></span>
+      <div id="panelHeaderLeft">
+        <span id="panelCount"></span>
         <span id="panelToggle">⌃</span>
+      </div>
+      <div id="panelHeaderRight">
+        <span id="panelBox" role="button" aria-label="Open running card"></span>
       </div>
     </div>
     <div id="panelBody">
@@ -1738,7 +1755,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v50';
+  const ver = 'v51';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
