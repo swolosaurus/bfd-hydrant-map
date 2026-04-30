@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "io.github.swolosaurus.bfdhydrants",
+    "sha256_cert_fingerprints": [
+      "E9:48:72:C3:5A:A2:5A:16:2F:9E:CD:ED:39:87:BD:03:A3:91:EF:12:7D:33:53:CD:FB:C9:90:70:9D:A5:2E:1F"
+    ]
+  }
+}]

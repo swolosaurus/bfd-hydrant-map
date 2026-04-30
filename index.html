@@ -248,8 +248,8 @@
     }
     #hydrantList { flex: 1; min-width: 0; overflow-y: auto; }
     #dueList {
-      flex: 0 0 50%;
-      max-width: 50%;
+      flex: 0 0 56%;
+      max-width: 56%;
       display: none;
       padding: 6px 10px 8px;
       border-left: 1px solid var(--border);
@@ -276,9 +276,8 @@
     }
     #dueList .alarm-block > div:not(.due-tag) {
       grid-column: 2;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      word-spacing: 2px;
+      overflow-wrap: anywhere;
     }
     #dueList .due-tag {
       font-weight: 800; color: var(--red); letter-spacing: 0.5px;
@@ -1740,7 +1739,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v48';
+  const ver = 'v49';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
