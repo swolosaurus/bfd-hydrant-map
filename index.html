@@ -259,13 +259,27 @@
       overflow: auto;
     }
     #dueList.show { display: block; }
-    #dueList .due-grid {
+    /* Each alarm = a block with the tag in col 1 (vertically centered across
+       4 lines), and engine/ladder/special/chief stacked in col 2. */
+    #dueList .alarm-block {
       display: grid;
-      grid-template-columns: 28px max-content max-content max-content max-content;
+      grid-template-columns: 32px 1fr;
       column-gap: 8px;
-      row-gap: 3px;
-      align-items: baseline;
+      row-gap: 1px;
+      margin-bottom: 8px;
+    }
+    #dueList .alarm-block:last-child { margin-bottom: 0; }
+    #dueList .alarm-block .due-tag {
+      grid-column: 1;
+      grid-row: 1 / span 4;
+      align-self: center;
+      font-size: 13px;
+    }
+    #dueList .alarm-block > div:not(.due-tag) {
+      grid-column: 2;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     #dueList .due-tag {
       font-weight: 800; color: var(--red); letter-spacing: 0.5px;
@@ -1182,19 +1196,20 @@ function renderDueList(card) {
     .filter(Boolean);
   if (!rows.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
 
-  const cell = (arr, cls) =>
+  const line = (arr, cls) =>
     (arr && arr.length)
       ? `<div class="${cls}">${arr.join(' ')}</div>`
       : `<div class="due-empty">—</div>`;
 
-  const cells = rows.map(r => `
-    <div class="due-tag">${r.alarm}</div>
-    ${cell(r.engine,  'due-eng')}
-    ${cell(r.ladder,  'due-lad')}
-    ${cell(r.special, 'due-spc')}
-    ${cell(r.chief,   'due-chf')}
+  el.innerHTML = rows.map(r => `
+    <div class="alarm-block">
+      <div class="due-tag">${r.alarm}</div>
+      ${line(r.engine,  'due-eng')}
+      ${line(r.ladder,  'due-lad')}
+      ${line(r.special, 'due-spc')}
+      ${line(r.chief,   'due-chf')}
+    </div>
   `).join('');
-  el.innerHTML = `<div class="due-grid">${cells}</div>`;
   el.classList.add('show');
 }
 
@@ -1717,7 +1732,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v44';
+  const ver = 'v45';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
