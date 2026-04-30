@@ -271,8 +271,7 @@
     #dueList .alarm-block:last-child { margin-bottom: 0; }
     #dueList .alarm-block .due-tag {
       grid-column: 1;
-      grid-row: 1 / span 4;
-      align-self: center;
+      grid-row: 1;            /* sits on the same line as the engine row */
       font-size: 13px;
     }
     #dueList .alarm-block > div:not(.due-tag) {
@@ -1732,7 +1731,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v45';
+  const ver = 'v46';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
