@@ -269,15 +269,15 @@
       padding: 4px 8px;
       border-left: 1px solid var(--border);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-      font-size: 13px;
-      line-height: 1.15;
-      overflow: hidden;        /* no scrolling — sized to fit */
+      font-size: 12px;
+      line-height: 1.2;
+      overflow: auto;         /* fall back to scroll only if a freak case overflows */
     }
     #dueList.show { display: block; }
     /* Each alarm = a block with the tag in col 1, lines stacked in col 2. */
     #dueList .alarm-block {
       display: grid;
-      grid-template-columns: 32px 1fr;
+      grid-template-columns: 30px 1fr;
       column-gap: 6px;
       row-gap: 0;
       margin-bottom: 3px;
@@ -286,7 +286,7 @@
     #dueList .alarm-block .due-tag {
       grid-column: 1;
       grid-row: 1;
-      font-size: 15px;
+      font-size: 14px;
     }
     #dueList .alarm-block > div:not(.due-tag) {
       grid-column: 2;
@@ -1755,7 +1755,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v52';
+  const ver = 'v53';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
