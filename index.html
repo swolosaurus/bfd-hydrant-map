@@ -1496,17 +1496,15 @@ window.initMap = function() {
     scale = 1; tx = 0; ty = 0; applyTransform();
   }
   function clampPan() {
-    // Loose clamp: keep at least a corner of the image on screen so the user
-    // can never lose the card off-screen entirely. Otherwise free pan.
+    // Both rects are in viewport coords — compare directly.
+    // Keeps a 60px sliver of image always reachable on screen.
     const r = modal.getBoundingClientRect();
     const ir = modalImg.getBoundingClientRect();
-    const margin = 60;  // always keep this many pixels of image visible
-    // ir already reflects the on-screen post-transform rectangle.
-    // Compute how far translation can move before the image is fully off:
-    if (ir.right < margin)            tx += margin - ir.right;
-    if (ir.left  > r.width - margin)  tx -= ir.left - (r.width - margin);
-    if (ir.bottom < margin)           ty += margin - ir.bottom;
-    if (ir.top   > r.height - margin) ty -= ir.top - (r.height - margin);
+    const margin = 60;
+    if (ir.right  < r.left  + margin) tx += (r.left  + margin) - ir.right;
+    if (ir.left   > r.right - margin) tx -= ir.left   - (r.right - margin);
+    if (ir.bottom < r.top   + margin) ty += (r.top   + margin) - ir.bottom;
+    if (ir.top    > r.bottom - margin) ty -= ir.top  - (r.bottom - margin);
   }
 
   // Track active pointers for pinch detection
@@ -1581,7 +1579,6 @@ window.initMap = function() {
       if (startDist > 0) {
         const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * d / startDist));
         if (newScale <= MIN_SCALE + 0.01) {
-          // Pinching out below 1× — recenter (image fits flush to viewport)
           scale = MIN_SCALE; tx = 0; ty = 0;
         } else {
           const r = modalRect();
@@ -1592,14 +1589,14 @@ window.initMap = function() {
           tx = focal.x - pinchImgPoint.x * newScale;
           ty = focal.y - pinchImgPoint.y * newScale;
           scale = newScale;
-          clampPan();
+          // No clampPan during gesture — was causing twitch from
+          // measurement-vs-transform fight. Clamp only on gesture end.
         }
         applyTransform();
       }
     } else if (pointers.size === 1 && panStart && scale > 1) {
       tx = e.clientX - panStart.x;
       ty = e.clientY - panStart.y;
-      clampPan();
       applyTransform();
     }
   });
@@ -1610,7 +1607,18 @@ window.initMap = function() {
       startDist = 0;
       pinchFocal = pinchImgPoint = null;
     }
-    if (pointers.size === 0) panStart = null;
+    if (pointers.size === 1) {
+      // Lifting one finger after a pinch — hand off cleanly to single-finger
+      // pan so the remaining finger doesn't have a stale panStart.
+      const [p] = [...pointers.values()];
+      panStart = { x: p.x - tx, y: p.y - ty };
+    }
+    if (pointers.size === 0) {
+      panStart = null;
+      // Now that the gesture is over, snap the image back if it drifted off.
+      clampPan();
+      applyTransform();
+    }
   }
   modal.addEventListener('pointerup', onUp);
   modal.addEventListener('pointercancel', onUp);
@@ -1758,7 +1766,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v54';
+  const ver = 'v55';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
