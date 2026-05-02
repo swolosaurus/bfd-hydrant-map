@@ -1447,8 +1447,11 @@ window.initMap = function() {
     rotateControl: true,
     rotateControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
     gestureHandling: 'greedy',
-    headingInteractionEnabled: true,
-    tiltInteractionEnabled: true,
+    // Two-finger pinch is reserved for zoom only. Rotation/tilt available
+    // via the on-map rotate control (top-right). Setting these to false
+    // prevents twitchy zoom-vs-rotate gesture conflicts.
+    headingInteractionEnabled: false,
+    tiltInteractionEnabled: false,
     styles: [
       { elementType:'geometry',              stylers:[{color:'#242f3e'}] },
       { elementType:'labels.text.stroke',    stylers:[{color:'#242f3e'}] },
@@ -1755,7 +1758,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v53';
+  const ver = 'v54';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
