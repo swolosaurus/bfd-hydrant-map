@@ -301,8 +301,6 @@
     #dueList .due-spc { color: #4FC3F7; }
     #dueList .due-chf { color: #FFFFFF; }
     #dueList .due-empty { color: var(--muted); }
-    #panelToggle { font-size: 18px; color: var(--muted); transition: transform 0.2s; }
-    #panel.collapsed #panelToggle { transform: rotate(180deg); }
     #panel.collapsed #hydrantList { display: none; }
 
     #hydrantList { overflow-y: auto; flex: 1; max-height: 236px; }
@@ -386,7 +384,6 @@
     <div id="panelHeader">
       <div id="panelHeaderLeft">
         <span id="panelCount"></span>
-        <span id="panelToggle">⌃</span>
       </div>
       <div id="panelHeaderRight">
         <span id="panelBox" role="button" aria-label="Open running card"></span>
@@ -1763,7 +1760,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v56';
+  const ver = 'v57';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
