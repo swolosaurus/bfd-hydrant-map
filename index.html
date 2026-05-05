@@ -52,9 +52,59 @@
       flex-shrink: 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     }
-    #header-left { display: flex; align-items: center; gap: 10px; }
+    #header-left { display: flex; align-items: center; gap: 10px; cursor: pointer; }
     #header h1  { font-size: 17px; font-weight: 800; letter-spacing: 1.5px; }
     #header sub { font-size: 10px; opacity: 0.75; letter-spacing: 0.8px; display: block; margin-top: 1px; }
+
+    /* About modal — full-screen overlay with app info + privacy link */
+    #about-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.94);
+      z-index: 9999;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding: max(20px, env(safe-area-inset-top)) 16px 20px;
+      overflow-y: auto;
+    }
+    #about-modal.show { display: flex; }
+    #about-content {
+      max-width: 520px; width: 100%;
+      color: var(--text);
+      font-size: 14px; line-height: 1.5;
+    }
+    #about-content h2 {
+      color: var(--red); font-size: 22px; font-weight: 800;
+      letter-spacing: 1px; margin-bottom: 4px;
+    }
+    #about-content .subtitle {
+      color: var(--muted); font-size: 11px;
+      letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    #about-content h3 {
+      color: var(--red); font-size: 12px; letter-spacing: 1px;
+      margin-top: 16px; margin-bottom: 6px; text-transform: uppercase;
+    }
+    #about-content p, #about-content li { margin: 4px 0; }
+    #about-content ul { padding-left: 18px; }
+    #about-content a { color: #4FC3F7; text-decoration: underline; }
+    #about-content .disclaimer {
+      background: rgba(200, 16, 46, 0.15);
+      border-left: 3px solid var(--red);
+      padding: 8px 12px; margin-top: 16px;
+      font-size: 13px;
+    }
+    #about-modal-close {
+      position: fixed;
+      top: max(8px, calc(env(safe-area-inset-top) - 4px)); right: 8px;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.18);
+      color: white; font-size: 20px;
+      border: none; cursor: pointer;
+      z-index: 10000;
+    }
     #header-right {
       display: flex; align-items: center; gap: 6px;
     }
@@ -353,7 +403,7 @@
 <div id="app">
 
   <div id="header">
-    <div id="header-left">
+    <div id="header-left" role="button" aria-label="About this app">
       <div>
         <h1>🚒 HYDRANT MAP</h1>
         <sub>BOSTON FIRE DEPARTMENT</sub>
@@ -403,6 +453,58 @@
 
   <!-- Reserved ad strip at the very bottom (always visible). -->
   <div id="adSlot" aria-hidden="true"></div>
+
+  <!-- About / Help modal (tap the header title to open) -->
+  <div id="about-modal" role="dialog" aria-label="About this app">
+    <button id="about-modal-close" type="button" aria-label="Close">✕</button>
+    <div id="about-content">
+      <h2>🚒 Hydrant Map</h2>
+      <div class="subtitle">Boston Fire Department</div>
+
+      <p>A quick-reference tool for finding the nearest fire hydrants to any
+      Boston address. Built independently to complement NowForce dispatch.</p>
+
+      <h3>How to use</h3>
+      <ul>
+        <li>From NowForce: tap <b>Open with → BFD Hydrants</b></li>
+        <li>Manually: paste any Boston address, hit Enter</li>
+        <li>Current location: tap <b>📍</b></li>
+        <li>Tap the <b>BOX</b> badge to view the full running card</li>
+      </ul>
+
+      <h3>What it shows</h3>
+      <ul>
+        <li>Nearest hydrants within 500 ft, ranked &amp; color-coded</li>
+        <li>Building footprint of the incident (red highlight)</li>
+        <li>BFD district badge (D1–D12)</li>
+        <li>Nearest alarm box + 1st / SS / 2nd / 3rd due companies</li>
+      </ul>
+
+      <h3>Data sources</h3>
+      <ul>
+        <li>Hydrants, fire boxes, districts: <a href="https://gis.boston.gov" target="_blank" rel="noopener">gis.boston.gov</a></li>
+        <li>Building footprints: Boston Planning &amp; Development Agency</li>
+        <li>Running cards: BFD official cards</li>
+        <li>Map tiles &amp; geocoding: Google Maps Platform</li>
+      </ul>
+
+      <div class="disclaimer">
+        <b>For reference only.</b> Always verify hydrant status, accessibility,
+        and dispatch information on scene. Out-of-service hydrants and recent
+        operational changes may not be reflected.
+      </div>
+
+      <h3>Contact</h3>
+      <p><a href="mailto:alexander.cho.617@gmail.com">alexander.cho.617@gmail.com</a></p>
+
+      <h3>Legal</h3>
+      <p><a href="./privacy.html">Privacy Policy</a></p>
+
+      <p style="margin-top:24px; color: var(--muted); font-size: 11px;">
+        Not officially affiliated with the Boston Fire Department.
+      </p>
+    </div>
+  </div>
 
 </div>
 
@@ -1465,6 +1567,17 @@ window.initMap = function() {
 
   // ── Event listeners ──
   document.getElementById('locBtn').addEventListener('click', useLocation);
+
+  // About modal — tap the header title to open
+  const aboutModal = document.getElementById('about-modal');
+  document.getElementById('header-left').addEventListener('click', () => {
+    aboutModal.classList.add('show');
+  });
+  const closeAbout = () => aboutModal.classList.remove('show');
+  document.getElementById('about-modal-close').addEventListener('click', closeAbout);
+  aboutModal.addEventListener('click', (e) => {
+    if (e.target === aboutModal) closeAbout();
+  });
   const inputEl = document.getElementById('addressInput');
   inputEl.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); search(); }
@@ -1760,7 +1873,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v57';
+  const ver = 'v58';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;

@@ -1,5 +1,5 @@
-const CACHE = 'bfd-hydrants-v57';
-const SHELL = ['./','./index.html','./manifest.json'];
+const CACHE = 'bfd-hydrants-v58';
+const SHELL = ['./','./index.html','./manifest.json','./privacy.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)));

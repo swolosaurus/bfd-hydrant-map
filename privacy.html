@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Privacy Policy · Hydrant Map</title>
+<style>
+  :root {
+    --bg: #111111;
+    --card: #1A1A1C;
+    --text: #E8E8E8;
+    --muted: #888;
+    --red: #C8102E;
+    --border: #2A2A2C;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.55; }
+  header {
+    background: var(--red); color: #fff;
+    padding: 14px 16px;
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: 1px; font-weight: 800; }
+  header .sub { font-size: 11px; opacity: 0.85; letter-spacing: 0.6px; text-transform: uppercase; margin-top: 2px; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 18px 60px; }
+  h2 { color: var(--red); font-size: 14px; letter-spacing: 1px; text-transform: uppercase; margin-top: 28px; margin-bottom: 6px; }
+  h2:first-of-type { margin-top: 0; }
+  p, li { font-size: 14.5px; }
+  ul { padding-left: 22px; }
+  a { color: #4FC3F7; }
+  .meta { color: var(--muted); font-size: 12px; }
+  .back { display: inline-block; margin-bottom: 18px; color: #4FC3F7; text-decoration: none; }
+  .back::before { content: "←  "; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 22px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚒 Hydrant Map</h1>
+  <div class="sub">Privacy Policy</div>
+</header>
+
+<main>
+<a class="back" href="./">Back to app</a>
+
+<p class="meta">Last updated: May 4, 2026</p>
+
+<p>This document describes what information the Hydrant Map app
+("the app") collects, how it is used, and the choices you have. By
+using the app you agree to the practices described below.</p>
+
+<h2>What the app collects</h2>
+
+<p>The app is designed to collect as little information as possible.
+The following lists every form of data the app touches.</p>
+
+<ul>
+  <li><b>Your approximate location</b> — only when you tap the GPS
+    button (📍) or grant location permission. The location is used
+    inside your browser to center the map and find nearby hydrants;
+    it is <b>not transmitted to any server controlled by the app's
+    operator</b>.</li>
+  <li><b>Address you type or paste</b> — sent to Google's Geocoding
+    API so it can be converted to map coordinates. Google's privacy
+    policy applies to this lookup.</li>
+  <li><b>Your clipboard content</b> — read by the app on launch only
+    when you have already granted clipboard permission, and only used
+    to detect a NowForce-style fire dispatch ("Nearest Box: NNNN" /
+    address). Clipboard content is never stored or transmitted.</li>
+  <li><b>Local cache</b> — Boston hydrant, fire-box, fire-district,
+    building, and running-card data are downloaded once and stored in
+    your browser's IndexedDB so the app works offline. You can clear
+    it any time via your browser's site-settings page.</li>
+</ul>
+
+<p>The app does <b>not</b> have its own backend server, log files,
+analytics, or user accounts. The author cannot see who is using the
+app or what addresses have been searched.</p>
+
+<h2>Cookies &amp; advertising</h2>
+
+<p>The app may display advertisements provided by Google AdSense.
+When AdSense is active:</p>
+
+<ul>
+  <li>Google may set cookies in your browser to serve ads relevant to
+    your interests and to measure ad performance.</li>
+  <li>Google may collect information including (but not limited to)
+    your IP address, device type, browser, and pages visited.</li>
+  <li>You can opt out of personalized advertising at any time via
+    Google's <a href="https://adssettings.google.com/" target="_blank" rel="noopener">Ads Settings</a>
+    page or by visiting <a href="https://www.aboutads.info/choices" target="_blank" rel="noopener">aboutads.info/choices</a>.</li>
+</ul>
+
+<p>Google's full privacy policy is available at
+<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>.</p>
+
+<h2>Third-party services</h2>
+
+<p>The app uses these external services. Each has its own privacy
+policy linked below.</p>
+
+<ul>
+  <li><b>Google Maps Platform</b> — map tiles, address geocoding.
+    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a></li>
+  <li><b>City of Boston GIS Portal</b> — public hydrant, fire-box,
+    and fire-district datasets. Used as a fallback if the offline
+    bundle hasn't downloaded yet.
+    <a href="https://www.boston.gov/departments/innovation-and-technology/privacy-statement" target="_blank" rel="noopener">boston.gov privacy statement</a></li>
+  <li><b>Boston Planning &amp; Development Agency</b> — public
+    building-footprint data.</li>
+  <li><b>GitHub Pages</b> — hosts the static files the app is served
+    from. GitHub may log connection metadata (IP, user-agent).
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a></li>
+  <li><b>Google AdSense</b> (when ads are present) — advertising
+    network. See above.</li>
+</ul>
+
+<h2>Children</h2>
+
+<p>The app is intended for adult users (firefighters and members of
+the public looking up hydrant locations). It does not knowingly
+collect any data from children under 13.</p>
+
+<h2>Your rights</h2>
+
+<ul>
+  <li><b>Location</b>: revoke the app's location permission at any
+    time in your browser or device settings.</li>
+  <li><b>Clipboard</b>: revoke clipboard permission at any time. The
+    app falls back to manual paste.</li>
+  <li><b>Cached data</b>: clear it any time via your browser's
+    site-settings page (look for "Clear data" or "Site storage").</li>
+  <li><b>EU/UK residents</b>: under GDPR you may request deletion of
+    any personal data the operator holds. Because the app does not
+    operate a backend, the operator does not hold personal data; the
+    only mitigation available is at the third-party services listed
+    above (e.g., Google Ads Settings).</li>
+  <li><b>California residents</b>: under CCPA you have the right to
+    know what personal information is collected and to request its
+    deletion. Same caveat applies — the operator does not hold any.</li>
+</ul>
+
+<h2>Changes to this policy</h2>
+
+<p>This policy may be updated when new features are added or
+third-party services change. Material changes will be reflected in
+the "Last updated" date at the top of this page. There is no email
+notification for changes — please re-read periodically.</p>
+
+<h2>Contact</h2>
+
+<p>Questions or requests:
+<a href="mailto:alexander.cho.617@gmail.com">alexander.cho.617@gmail.com</a></p>
+
+<hr>
+<p class="meta">Hydrant Map is an independent project not officially
+affiliated with the Boston Fire Department. It is provided "as is"
+without warranty for operational use.</p>
+
+</main>
+</body>
+</html>
