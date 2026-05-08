@@ -1536,10 +1536,11 @@ window.initMap = function() {
     center: { lat: 42.3601, lng: -71.0589 },
     zoom: 13,
     // Vector map — enables two-finger rotate + tilt gestures.
-    // NOTE: when mapId is set, the inline `styles` below are IGNORED by
-    // Google. To restore the dark theme, configure the Map Style for this
-    // Map ID at https://console.cloud.google.com/google/maps-apis/studio/styles
-    mapId: '5c8e4bcc0fe4fe273a2f76d8',
+    // NOTE: mapId disabled — was causing blank map (Map ID config issue
+    // in Cloud Console). Falls back to raster map with inline styles below.
+    // To re-enable vector + dark theme, restore the mapId once the Map ID
+    // configuration is verified at console.cloud.google.com/google/maps-apis/studio/maps
+    // mapId: '5c8e4bcc0fe4fe273a2f76d8',
     disableDefaultUI: true,
     zoomControl: true,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
@@ -1873,7 +1874,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v58';
+  const ver = 'v59';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
