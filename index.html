@@ -269,35 +269,18 @@
     #adSlot:empty::before { content: ''; }
     #panel.open { transform: translateY(0); }
 
-    /* Two-cell header. Left cell: BOX badge + hydrant count.
-       Right cell: unit picker (mirrors due-list column width). */
+    /* Single-row header — BOX badge, unit picker, assignment chip, cover
+       chip — all centered horizontally. */
     #panelHeader {
-      padding: 8px 0;
+      padding: 8px;
       display: flex;
       flex-shrink: 0;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
       border-bottom: 1px solid var(--border);
       cursor: pointer;
-    }
-    #panelHeaderLeft {
-      flex: 1;
-      min-width: 0;
-      padding: 0 14px;
-      display: flex; align-items: center;
-    }
-    #panelHeaderRight {
-      flex: 0 0 56%;            /* matches #dueList width */
-      max-width: 56%;
-      padding: 0 8px;
-      border-left: 1px solid var(--border);
-      display: flex; gap: 6px; justify-content: center; align-items: center;
-    }
-    #panelCount  {
-      font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
-      color: var(--muted); text-transform: uppercase;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
     #panelBox    {
       font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
@@ -565,17 +548,12 @@
 
   <div id="panel">
     <div id="panelHeader">
-      <div id="panelHeaderLeft">
-        <span id="panelCount"></span>
-      </div>
-      <div id="panelHeaderRight">
-        <span id="panelBox" role="button" aria-label="Open running card"></span>
-        <button id="unitPicker" type="button" aria-label="Pick your unit">
-          <span id="unitPickerLabel">Pick unit</span><span class="picker-caret">▾</span>
-        </button>
-        <span id="assignChip" aria-label="Your alarm assignment"></span>
-        <span id="coverChip" aria-label="Your covering move"></span>
-      </div>
+      <span id="panelBox" role="button" aria-label="Open running card"></span>
+      <button id="unitPicker" type="button" aria-label="Pick your unit">
+        <span id="unitPickerLabel">Pick unit</span><span class="picker-caret">▾</span>
+      </button>
+      <span id="assignChip" aria-label="Your alarm assignment"></span>
+      <span id="coverChip" aria-label="Your covering move"></span>
     </div>
     <div id="panelBody">
       <div id="hydrantList"></div>
@@ -1873,7 +1851,6 @@ async function showHydrants(lat, lng, label) {
       </div>`;
   }).join('');
 
-  document.getElementById('panelCount').textContent = `${hydrants.length} hydrants within ${RADIUS_FEET} ft`;
   document.getElementById('panel').classList.add('open');
   document.getElementById('panel').classList.remove('collapsed');
 
@@ -2313,7 +2290,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v64';
+  const ver = 'v65';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
