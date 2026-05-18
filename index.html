@@ -282,14 +282,14 @@
       flex: 1;
       min-width: 0;
       padding: 0 14px;
-      display: flex; gap: 8px; align-items: center;
+      display: flex; align-items: center;
     }
     #panelHeaderRight {
       flex: 0 0 56%;            /* matches #dueList width */
       max-width: 56%;
       padding: 0 8px;
       border-left: 1px solid var(--border);
-      display: flex; justify-content: center; align-items: center;
+      display: flex; gap: 6px; justify-content: center; align-items: center;
     }
     #panelCount  {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
@@ -563,10 +563,10 @@
   <div id="panel">
     <div id="panelHeader">
       <div id="panelHeaderLeft">
-        <span id="panelBox" role="button" aria-label="Open running card"></span>
         <span id="panelCount"></span>
       </div>
       <div id="panelHeaderRight">
+        <span id="panelBox" role="button" aria-label="Open running card"></span>
         <button id="unitPicker" type="button" aria-label="Pick your unit">
           <span id="unitPickerLabel">Pick unit</span><span class="picker-caret">▾</span>
         </button>
@@ -2251,7 +2251,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v61';
+  const ver = 'v62';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
