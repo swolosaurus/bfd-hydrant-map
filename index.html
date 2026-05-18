@@ -269,8 +269,8 @@
     #adSlot:empty::before { content: ''; }
     #panel.open { transform: translateY(0); }
 
-    /* Two-cell header that mirrors panelBody widths so BOX badge sits centered
-       above the due-list column. */
+    /* Two-cell header. Left cell: BOX badge + hydrant count.
+       Right cell: unit picker (mirrors due-list column width). */
     #panelHeader {
       padding: 8px 0;
       display: flex;
@@ -282,7 +282,7 @@
       flex: 1;
       min-width: 0;
       padding: 0 14px;
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; gap: 8px; align-items: center;
     }
     #panelHeaderRight {
       flex: 0 0 56%;            /* matches #dueList width */
@@ -294,6 +294,10 @@
     #panelCount  {
       font-size: 11px; font-weight: 700; letter-spacing: 1.2px;
       color: var(--muted); text-transform: uppercase;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     #panelBox    {
       font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
@@ -301,9 +305,135 @@
       padding: 3px 9px; border-radius: 6px;
       cursor: pointer;
       display: none;
+      flex-shrink: 0;
     }
     #panelBox.show { display: inline-block; }
     #panelBox:active { background: #E8C200; }
+
+    /* Unit picker chip — sits in right header cell, opens the unit modal. */
+    #unitPicker {
+      font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
+      padding: 4px 10px; border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #2a2a2c; color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    #unitPicker:active { opacity: 0.85; }
+    #unitPicker.cat-engine  { background: #FF6B6B; color: #111; border-color: #FF6B6B; }
+    #unitPicker.cat-ladder  { background: #FFD400; color: #111; border-color: #FFD400; }
+    #unitPicker.cat-special { background: #4FC3F7; color: #111; border-color: #4FC3F7; }
+    #unitPicker.cat-chief   { background: #FFFFFF; color: #111; border-color: #FFFFFF; }
+    #unitPicker .alarm-pill {
+      margin-left: 6px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: rgba(0,0,0,0.32);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    #unitPicker .picker-caret { opacity: 0.6; font-size: 10px; }
+
+    /* Unit picker modal — fullscreen overlay, colored tabs + company grid. */
+    #unit-modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 70;
+      display: none;
+      flex-direction: column;
+    }
+    #unit-modal.show { display: flex; }
+    #unit-modal-close {
+      position: absolute; top: 6px; right: 6px;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.22);
+      color: white; font-size: 18px;
+      border: none; cursor: pointer;
+      z-index: 71;
+    }
+    #unit-modal-title {
+      padding: 16px 16px 4px;
+      font-size: 13px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    #unit-tabs {
+      display: flex; gap: 4px;
+      padding: 8px 12px;
+      flex-shrink: 0;
+    }
+    #unit-tabs button {
+      flex: 1; padding: 9px 0;
+      border: none;
+      font-weight: 800; letter-spacing: 0.4px;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0.55;
+      transition: opacity 0.15s, transform 0.15s;
+      color: #111;
+      border-radius: 6px;
+    }
+    #unit-tabs button[data-cat=engine]  { background: #FF6B6B; }
+    #unit-tabs button[data-cat=ladder]  { background: #FFD400; }
+    #unit-tabs button[data-cat=special] { background: #4FC3F7; }
+    #unit-tabs button[data-cat=chief]   { background: #FFFFFF; }
+    #unit-tabs button.active { opacity: 1; }
+    #unit-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 12px 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 8px;
+    }
+    .unit-cell {
+      background: #1c1c1e;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 14px 6px;
+      border-radius: 6px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .unit-cell:active { background: #2a2a2c; }
+    .unit-cell.selected {
+      box-shadow: inset 0 0 0 2px #fff;
+      background: #2a2a2c;
+    }
+    #unit-clear {
+      margin: 0 12px 8px;
+      padding: 8px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #unit-clear:active { background: #1c1c1e; }
+
+    /* Highlight the user's company wherever it appears in the due-list. */
+    #dueList .my-unit {
+      background: #fff;
+      color: #111;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 800;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.4);
+    }
 
     /* Panel body: hydrant list on left, due-list on right (bottom-right quad) */
     #panelBody {
@@ -433,10 +563,13 @@
   <div id="panel">
     <div id="panelHeader">
       <div id="panelHeaderLeft">
+        <span id="panelBox" role="button" aria-label="Open running card"></span>
         <span id="panelCount"></span>
       </div>
       <div id="panelHeaderRight">
-        <span id="panelBox" role="button" aria-label="Open running card"></span>
+        <button id="unitPicker" type="button" aria-label="Pick your unit">
+          <span id="unitPickerLabel">Pick unit</span><span class="picker-caret">▾</span>
+        </button>
       </div>
     </div>
     <div id="panelBody">
@@ -449,6 +582,20 @@
       <button id="card-modal-close" type="button" aria-label="Close">✕</button>
       <img id="card-modal-img" alt="Running card">
     </div>
+  </div>
+
+  <!-- Unit picker modal — pick your company (E9, L4, R1, D3, etc) -->
+  <div id="unit-modal" role="dialog" aria-label="Pick your unit">
+    <button id="unit-modal-close" type="button" aria-label="Close">✕</button>
+    <div id="unit-modal-title">Your company</div>
+    <div id="unit-tabs">
+      <button type="button" data-cat="engine">ENGINE</button>
+      <button type="button" data-cat="ladder">LADDER</button>
+      <button type="button" data-cat="special">SPECIAL</button>
+      <button type="button" data-cat="chief">CHIEF</button>
+    </div>
+    <button id="unit-clear" type="button">Clear selection</button>
+    <div id="unit-grid"></div>
   </div>
 
   <!-- Reserved ad strip at the very bottom (always visible). -->
@@ -1255,6 +1402,7 @@ function setRunningCard(box, opts = {}) {
     panelBox.classList.remove('show');
     panelBox.dataset.url = '';
     renderDueList(null);
+    updateUnitPickerLabel();
     return;
   }
   if (!opts.explicit && _explicitBox) return;
@@ -1277,6 +1425,7 @@ function setRunningCard(box, opts = {}) {
     panelBox.dataset.url = '';
     _currentBox = null;
     _explicitBox = false;
+    updateUnitPickerLabel();
   };
   probe.src = url;
 
@@ -1286,11 +1435,187 @@ function setRunningCard(box, opts = {}) {
     if (_currentBox !== box) return;  // box changed under us
     if (!_runningCards) return;
     renderDueList(_runningCards[box] || null);
+    updateUnitPickerLabel();
   };
   tryRender();
   if (!_runningCards) {
     ensureRunningCardsBundleLoaded().then(ok => { if (ok) tryRender(); });
   }
+}
+
+// ─────────────────────────────────────────────
+//  UNIT PICKER — let the user mark their company so they can
+//  see at a glance which alarm of any box they're due on.
+// ─────────────────────────────────────────────
+const UNIT_STORAGE_KEY = 'bfd_my_unit';
+const UNIT_CATEGORIES = ['engine','ladder','special','chief'];
+let _selectedUnit = null;          // { cat, code } or null
+let _unitRoster   = null;          // { engine:[], ladder:[], special:[], chief:[] }
+let _activeTab    = 'engine';
+
+// Strip common suffixes (-RIT, -ACCT, -2A, etc) and trailing dashes.
+function _stripUnitSuffix(s) {
+  return s.replace(/[-]?(RIT|ACCT|PERM|2A|ACT|RT)$/i, '').replace(/[-\s]+$/, '');
+}
+
+// Normalize an OCR'd token into a canonical company code, or null if junk.
+// E04 → E4, L01 → L1, TL03 → TL3, D04 → D4, DV1 → Div1, MCP → MCP, etc.
+function normalizeUnit(raw) {
+  if (!raw) return null;
+  let s = _stripUnitSuffix(raw.toString().trim());
+  if (!s) return null;
+  let m;
+  if ((m = s.match(/^E0?(\d{1,2})$/i)))  return 'E'   + parseInt(m[1], 10);
+  if ((m = s.match(/^L0?(\d{1,2})$/i)))  return 'L'   + parseInt(m[1], 10);
+  if ((m = s.match(/^TL0?(\d{1,2})$/i))) return 'TL'  + parseInt(m[1], 10);
+  if ((m = s.match(/^R0?(\d{1,2})$/i)))  return 'R'   + parseInt(m[1], 10);
+  if ((m = s.match(/^D0?(\d{1,2})$/i)))  return 'D'   + parseInt(m[1], 10);
+  if ((m = s.match(/^DV0?(\d{1,2})$/i))) return 'Div' + parseInt(m[1], 10);
+  if ((m = s.match(/^H0?(\d{1,2})$/i)))  return 'H'   + parseInt(m[1], 10);
+  if ((m = s.match(/^W0?(\d{1,2})$/i)))  return 'W'   + parseInt(m[1], 10);
+  if ((m = s.match(/^K0?(\d{1,2})$/i)))  return 'K'   + parseInt(m[1], 10);
+  if ((m = s.match(/^M0?(\d{1,2})$/i)))  return 'M'   + parseInt(m[1], 10);
+  if ((m = s.match(/^C0?(\d{1,2})$/i)))  return 'C'   + parseInt(m[1], 10);
+  const NAMED = ['MCP','MU','MCT','HAZMT1','RT','MCP/W12'];
+  if (NAMED.includes(s.toUpperCase())) return s.toUpperCase();
+  return null;
+}
+
+// Scan the running-cards bundle once and build the four category rosters.
+function _buildUnitRoster() {
+  const sets = { engine: new Set(), ladder: new Set(), special: new Set(), chief: new Set() };
+  if (!_runningCards) return null;
+  for (const card of Object.values(_runningCards)) {
+    const rows = card && card.respond_to_fire;
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      for (const cat of UNIT_CATEGORIES) {
+        for (const cell of (row[cat] || [])) {
+          for (const raw of String(cell).split(/\s+/)) {
+            const norm = normalizeUnit(raw);
+            if (norm) sets[cat].add(norm);
+          }
+        }
+      }
+    }
+  }
+  const sortFn = (a, b) => {
+    const re = /^([A-Za-z]+)(\d+)?$/;
+    const ma = a.match(re), mb = b.match(re);
+    if (ma && mb) {
+      if (ma[1] !== mb[1]) return ma[1] < mb[1] ? -1 : 1;
+      return (parseInt(ma[2]||'0',10)) - (parseInt(mb[2]||'0',10));
+    }
+    return a < b ? -1 : 1;
+  };
+  return {
+    engine:  [...sets.engine].sort(sortFn),
+    ladder:  [...sets.ladder].sort(sortFn),
+    special: [...sets.special].sort(sortFn),
+    chief:   [...sets.chief].sort(sortFn),
+  };
+}
+
+function _ensureUnitRoster() {
+  if (_unitRoster) return _unitRoster;
+  _unitRoster = _buildUnitRoster();
+  return _unitRoster;
+}
+
+function _loadSelectedUnit() {
+  try {
+    const raw = localStorage.getItem(UNIT_STORAGE_KEY);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (obj && UNIT_CATEGORIES.includes(obj.cat) && typeof obj.code === 'string') return obj;
+  } catch(e) {}
+  return null;
+}
+function _saveSelectedUnit(u) {
+  try {
+    if (u) localStorage.setItem(UNIT_STORAGE_KEY, JSON.stringify(u));
+    else   localStorage.removeItem(UNIT_STORAGE_KEY);
+  } catch(e) {}
+}
+
+// Find which alarm tag (1ST/SS/2ND/3RD/etc) the selected unit appears on
+// for the current card, if any. Returns the alarm string or null.
+function _alarmFor(card, unit) {
+  if (!card || !unit || !Array.isArray(card.respond_to_fire)) return null;
+  for (const row of card.respond_to_fire) {
+    for (const cell of (row[unit.cat] || [])) {
+      for (const raw of String(cell).split(/\s+/)) {
+        if (normalizeUnit(raw) === unit.code) return row.alarm || null;
+      }
+    }
+  }
+  return null;
+}
+
+// Update the header chip to reflect the current selection + alarm tag for
+// whatever box is currently shown.
+function updateUnitPickerLabel() {
+  const btn = document.getElementById('unitPicker');
+  if (!btn) return;
+  const label = document.getElementById('unitPickerLabel');
+  // Reset category classes
+  UNIT_CATEGORIES.forEach(c => btn.classList.remove('cat-' + c));
+  if (!_selectedUnit) {
+    label.innerHTML = 'Pick unit';
+    return;
+  }
+  btn.classList.add('cat-' + _selectedUnit.cat);
+  const card = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
+  const alarm = _alarmFor(card, _selectedUnit);
+  label.innerHTML = alarm
+    ? `${_selectedUnit.code}<span class="alarm-pill">${alarm}</span>`
+    : _selectedUnit.code;
+}
+
+function setSelectedUnit(unit) {
+  _selectedUnit = unit;
+  _saveSelectedUnit(unit);
+  updateUnitPickerLabel();
+  // Re-render due list to refresh the highlight.
+  const card = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
+  renderDueList(card || null);
+}
+
+// ── Modal show/hide + render ──
+function openUnitModal() {
+  const roster = _ensureUnitRoster();
+  if (!roster) {
+    setStatus('Running cards still loading…');
+    return;
+  }
+  const modal = document.getElementById('unit-modal');
+  // Start on the selected unit's category, else engine.
+  _activeTab = (_selectedUnit && _selectedUnit.cat) || 'engine';
+  renderUnitTabs();
+  renderUnitGrid();
+  modal.classList.add('show');
+}
+function closeUnitModal() {
+  document.getElementById('unit-modal').classList.remove('show');
+}
+function renderUnitTabs() {
+  document.querySelectorAll('#unit-tabs button').forEach(b => {
+    b.classList.toggle('active', b.dataset.cat === _activeTab);
+  });
+}
+function renderUnitGrid() {
+  const roster = _ensureUnitRoster();
+  const grid = document.getElementById('unit-grid');
+  if (!roster) { grid.innerHTML = ''; return; }
+  const list = roster[_activeTab] || [];
+  if (!list.length) {
+    grid.innerHTML = '<div style="color:var(--muted);padding:20px;grid-column:1/-1;text-align:center">No units found</div>';
+    return;
+  }
+  grid.innerHTML = list.map(code => {
+    const sel = (_selectedUnit && _selectedUnit.cat === _activeTab && _selectedUnit.code === code);
+    return `<div class="unit-cell${sel ? ' selected' : ''}" data-code="${code}">${code}</div>`;
+  }).join('');
 }
 
 // Render the "1ST / 2ND / 3RD due" compact panel from a parsed card record.
@@ -1309,18 +1634,40 @@ function renderDueList(card) {
     .filter(Boolean);
   if (!rows.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
 
-  const line = (arr, cls) =>
+  // Wrap any token matching the selected unit in a highlight span. Tokens
+  // are space-separated within each cell ("E18 E16 E52-RIT") — split, match
+  // by normalized code, rejoin. Preserves the original raw string visually.
+  const escape = s => s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+  const highlightTokens = (arr, cellCat) => {
+    if (!arr || !arr.length) return '';
+    const out = [];
+    for (const cell of arr) {
+      const tokens = String(cell).split(/\s+/);
+      const wrapped = tokens.map(tok => {
+        if (_selectedUnit && _selectedUnit.cat === cellCat &&
+            normalizeUnit(tok) === _selectedUnit.code) {
+          return `<span class="my-unit">${escape(tok)}</span>`;
+        }
+        return escape(tok);
+      }).join(' ');
+      out.push(wrapped);
+    }
+    return out.join(' ');
+  };
+  const line = (arr, cls, cellCat) =>
     (arr && arr.length)
-      ? `<div class="${cls}">${arr.join(' ')}</div>`
+      ? `<div class="${cls}">${highlightTokens(arr, cellCat)}</div>`
       : `<div class="due-empty">—</div>`;
 
   el.innerHTML = rows.map(r => `
     <div class="alarm-block">
-      <div class="due-tag">${r.alarm}</div>
-      ${line(r.engine,  'due-eng')}
-      ${line(r.ladder,  'due-lad')}
-      ${line(r.special, 'due-spc')}
-      ${line(r.chief,   'due-chf')}
+      <div class="due-tag">${escape(r.alarm)}</div>
+      ${line(r.engine,  'due-eng', 'engine')}
+      ${line(r.ladder,  'due-lad', 'ladder')}
+      ${line(r.special, 'due-spc', 'special')}
+      ${line(r.chief,   'due-chf', 'chief')}
     </div>
   `).join('');
   el.classList.add('show');
@@ -1741,6 +2088,38 @@ window.initMap = function() {
   const closeModal = () => { modal.classList.remove('show'); resetTransform(); };
   document.getElementById('card-modal-close').addEventListener('click', closeModal);
 
+  // ── Unit picker — restore saved selection + wire up modal ──
+  _selectedUnit = _loadSelectedUnit();
+  updateUnitPickerLabel();
+
+  const unitModal = document.getElementById('unit-modal');
+  document.getElementById('unitPicker').addEventListener('click', (e) => {
+    e.stopPropagation();  // don't toggle the panel collapse
+    openUnitModal();
+  });
+  document.getElementById('unit-modal-close').addEventListener('click', closeUnitModal);
+  unitModal.addEventListener('click', (e) => {
+    if (e.target === unitModal) closeUnitModal();  // backdrop tap closes
+  });
+  document.querySelectorAll('#unit-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _activeTab = btn.dataset.cat;
+      renderUnitTabs();
+      renderUnitGrid();
+    });
+  });
+  document.getElementById('unit-grid').addEventListener('click', (e) => {
+    const cell = e.target.closest('.unit-cell');
+    if (!cell) return;
+    const code = cell.dataset.code;
+    setSelectedUnit({ cat: _activeTab, code });
+    closeUnitModal();
+  });
+  document.getElementById('unit-clear').addEventListener('click', () => {
+    setSelectedUnit(null);
+    renderUnitGrid();   // refresh "selected" state on visible cells
+  });
+
   // ── Preload the city-wide building bundle in the background ──
   // First launch downloads ~10 MB; cached forever after. Runs concurrently
   // with map setup so the user never sees a blocking spinner unless they
@@ -1872,7 +2251,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v60';
+  const ver = 'v61';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
