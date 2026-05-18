@@ -1486,7 +1486,26 @@ function normalizeUnit(raw) {
   return null;
 }
 
+// Map a normalized unit code to its canonical category, by prefix —
+// independent of which cell the OCR placed it in. (Engines like E24 often
+// appear inside ladder cells as substitutions when the ladder is OOS, but
+// in the picker they belong under Engine.)
+function categorizeUnit(norm) {
+  if (!norm) return null;
+  if (/^E\d+$/.test(norm))                                   return 'engine';
+  if (/^L\d+$/.test(norm) || /^TL\d+$/.test(norm))           return 'ladder';
+  if (/^D\d+$/.test(norm) || /^Div\d+$/.test(norm) ||
+      /^C\d+$/.test(norm))                                   return 'chief';
+  if (/^R\d+$/.test(norm) || /^W\d+$/.test(norm) ||
+      /^H\d+$/.test(norm) || /^K\d+$/.test(norm) ||
+      /^M\d+$/.test(norm))                                   return 'special';
+  if (['MCP','MU','MCT','HAZMT1'].includes(norm))            return 'special';
+  return null;
+}
+
 // Scan the running-cards bundle once and build the four category rosters.
+// Tokens are categorized by prefix (categorizeUnit), not by which cell they
+// were found in.
 function _buildUnitRoster() {
   const sets = { engine: new Set(), ladder: new Set(), special: new Set(), chief: new Set() };
   if (!_runningCards) return null;
@@ -1498,7 +1517,8 @@ function _buildUnitRoster() {
         for (const cell of (row[cat] || [])) {
           for (const raw of String(cell).split(/\s+/)) {
             const norm = normalizeUnit(raw);
-            if (norm) sets[cat].add(norm);
+            const target = categorizeUnit(norm);
+            if (target) sets[target].add(norm);
           }
         }
       }
@@ -2293,7 +2313,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v63';
+  const ver = 'v64';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
