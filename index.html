@@ -313,32 +313,35 @@
     /* Unit picker chip — sits in right header cell, opens the unit modal. */
     #unitPicker {
       font-size: 12px; font-weight: 800; letter-spacing: 0.8px;
-      padding: 4px 10px; border-radius: 6px;
+      padding: 4px 9px; border-radius: 6px;
       border: 1px solid var(--border);
       background: #2a2a2c; color: var(--muted);
       cursor: pointer;
       white-space: nowrap;
-      max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: inline-flex; align-items: center; gap: 6px;
+      display: inline-flex; align-items: center; gap: 4px;
+      flex-shrink: 0;
     }
     #unitPicker:active { opacity: 0.85; }
     #unitPicker.cat-engine  { background: #FF6B6B; color: #111; border-color: #FF6B6B; }
     #unitPicker.cat-ladder  { background: #FFD400; color: #111; border-color: #FFD400; }
     #unitPicker.cat-special { background: #4FC3F7; color: #111; border-color: #4FC3F7; }
     #unitPicker.cat-chief   { background: #FFFFFF; color: #111; border-color: #FFFFFF; }
-    #unitPicker .alarm-pill {
-      margin-left: 6px;
-      padding: 1px 5px;
-      border-radius: 3px;
-      background: rgba(0,0,0,0.32);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-    }
     #unitPicker .picker-caret { opacity: 0.6; font-size: 10px; }
+
+    /* Assignment + cover chips — sit to the right of the picker, light up
+       when the selected unit has an alarm assignment or covering move
+       for the currently displayed box. */
+    #assignChip, #coverChip {
+      font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
+      padding: 3px 7px; border-radius: 5px;
+      white-space: nowrap;
+      display: none;
+      flex-shrink: 0;
+    }
+    #assignChip.show { display: inline-block; background: #FF6B6B; color: #111; }
+    #coverChip.show  { display: inline-block; background: #FFA000; color: #111; }
 
     /* Unit picker modal — fullscreen overlay, colored tabs + company grid. */
     #unit-modal {
@@ -570,6 +573,8 @@
         <button id="unitPicker" type="button" aria-label="Pick your unit">
           <span id="unitPickerLabel">Pick unit</span><span class="picker-caret">▾</span>
         </button>
+        <span id="assignChip" aria-label="Your alarm assignment"></span>
+        <span id="coverChip" aria-label="Your covering move"></span>
       </div>
     </div>
     <div id="panelBody">
@@ -1552,24 +1557,61 @@ function _alarmFor(card, unit) {
   return null;
 }
 
-// Update the header chip to reflect the current selection + alarm tag for
-// whatever box is currently shown.
+// Find the covering move (if any) for the selected unit on the current card.
+// covering_assignments entries look like "E32>E08" — left side is the
+// source unit (you), right side is the destination station (what you cover).
+// Only engine + ladder have covering moves. Returns { alarm, dest } or null.
+function _coverFor(card, unit) {
+  if (!card || !unit || !Array.isArray(card.covering_assignments)) return null;
+  if (unit.cat !== 'engine' && unit.cat !== 'ladder') return null;
+  for (const row of card.covering_assignments) {
+    for (const cell of (row[unit.cat] || [])) {
+      const parts = String(cell).split('>');
+      if (parts.length !== 2) continue;
+      if (normalizeUnit(parts[0]) === unit.code) {
+        return {
+          alarm: row.alarm || null,
+          dest: normalizeUnit(parts[1]) || parts[1].trim(),
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// Update all three header chips (picker, assignment, cover) to reflect the
+// current selection + the alarm/cover for whatever box is currently shown.
 function updateUnitPickerLabel() {
-  const btn = document.getElementById('unitPicker');
+  const btn          = document.getElementById('unitPicker');
+  const label        = document.getElementById('unitPickerLabel');
+  const assignChip   = document.getElementById('assignChip');
+  const coverChip    = document.getElementById('coverChip');
   if (!btn) return;
-  const label = document.getElementById('unitPickerLabel');
-  // Reset category classes
+  // Reset
   UNIT_CATEGORIES.forEach(c => btn.classList.remove('cat-' + c));
+  assignChip.classList.remove('show');
+  coverChip.classList.remove('show');
+
   if (!_selectedUnit) {
-    label.innerHTML = 'Pick unit';
+    label.textContent = 'Pick unit';
     return;
   }
+  label.textContent = _selectedUnit.code;
   btn.classList.add('cat-' + _selectedUnit.cat);
-  const card = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
+
+  const card  = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
   const alarm = _alarmFor(card, _selectedUnit);
-  label.innerHTML = alarm
-    ? `${_selectedUnit.code}<span class="alarm-pill">${alarm}</span>`
-    : _selectedUnit.code;
+  const cover = _coverFor(card, _selectedUnit);
+  if (alarm) {
+    assignChip.textContent = alarm;
+    assignChip.classList.add('show');
+  }
+  if (cover) {
+    coverChip.textContent = cover.alarm
+      ? `${cover.alarm} → ${cover.dest}`
+      : `→ ${cover.dest}`;
+    coverChip.classList.add('show');
+  }
 }
 
 function setSelectedUnit(unit) {
@@ -2251,7 +2293,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v62';
+  const ver = 'v63';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
