@@ -55,17 +55,42 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 -d > android.keystore
 
-      - name: Build APK
+      - name: Build APK + AAB
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./node_modules/.bin/bubblewrap build --skipPwaValidation
 
-      - name: Upload APK
+      - name: Sign AAB (bubblewrap signs APK but not AAB)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          AAB_RAW="app/build/outputs/bundle/release/app-release.aab"
+          AAB_SIGNED="app-release-bundle.aab"
+          if [ -f "$AAB_RAW" ]; then
+            jarsigner -keystore android.keystore \
+              -storepass "$KEYSTORE_PASSWORD" \
+              -keypass "$KEY_PASSWORD" \
+              -signedjar "$AAB_SIGNED" \
+              "$AAB_RAW" android
+            echo "Signed AAB ready: $(ls -la $AAB_SIGNED)"
+          else
+            echo "AAB not found at expected path. Searching..."
+            find . -name "*.aab" -not -path "./node_modules/*" || true
+            exit 1
+          fi
+
+      - name: Show build outputs (debug)
+        run: |
+          echo "=== twa/ root ==="
+          ls -la *.apk *.aab 2>/dev/null || echo "no apk/aab at root"
+
+      - name: Upload APK + AAB
         uses: actions/upload-artifact@v4
         with:
-          name: bfd-hydrants-apk
+          name: bfd-hydrants-build
           path: |
             twa/app-release-signed.apk
             twa/app-release-bundle.aab
-          if-no-files-found: warn
+          if-no-files-found: error
