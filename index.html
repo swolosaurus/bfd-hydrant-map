@@ -1481,6 +1481,27 @@ function categorizeUnit(norm) {
   return null;
 }
 
+// Strict BFD unit allowlist. Source: BFD UNIT LOCATIONS doc (2013) +
+// user confirmation. Anything not on this list is OCR garbage or a
+// mutual-aid unit and must not appear in the picker dropdown.
+const UNIT_ALLOWLIST = {
+  engine: new Set([
+    'E2','E3','E4','E5','E7','E8','E9','E10','E14','E16','E17','E18','E20',
+    'E21','E22','E24','E28','E29','E30','E32','E33','E37','E39','E41','E42',
+    'E48','E49','E50','E51','E52','E53','E55','E56'
+  ]),
+  ladder: new Set([
+    'L1','L2','L4','L6','L7','L9','L11','L14','L15','L16','L17','L18','L19',
+    'L21','L23','L24','L25','L26','L28','L29','TL3','TL10'
+  ]),
+  special: new Set([
+    'R1','R2','MU','MCP','MCT','W25','H2','H7','H8','HAZMT1'
+  ]),
+  chief: new Set([
+    'D1','D3','D4','D6','D7','D8','D9','D11','D12','Div1','Div2'
+  ]),
+};
+
 // Scan the running-cards bundle once and build the four category rosters.
 // Tokens are categorized by prefix (categorizeUnit), not by which cell they
 // were found in.
@@ -1511,11 +1532,13 @@ function _buildUnitRoster() {
     }
     return a < b ? -1 : 1;
   };
+  // Filter through the strict roster — only real BFD units show in the picker.
+  const keep = (cat, arr) => arr.filter(u => UNIT_ALLOWLIST[cat].has(u));
   return {
-    engine:  [...sets.engine].sort(sortFn),
-    ladder:  [...sets.ladder].sort(sortFn),
-    special: [...sets.special].sort(sortFn),
-    chief:   [...sets.chief].sort(sortFn),
+    engine:  keep('engine',  [...sets.engine]).sort(sortFn),
+    ladder:  keep('ladder',  [...sets.ladder]).sort(sortFn),
+    special: keep('special', [...sets.special]).sort(sortFn),
+    chief:   keep('chief',   [...sets.chief]).sort(sortFn),
   };
 }
 
@@ -2290,7 +2313,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v66';
+  const ver = 'v67';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
