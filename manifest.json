@@ -1,7 +1,7 @@
 {
-  "name": "BFD Hydrant Map",
-  "short_name": "BFD Hydrants",
-  "description": "Boston Fire Department — nearest hydrants to any incident address",
+  "name": "Boston Hydrant Map",
+  "short_name": "Hydrant Map",
+  "description": "Find the nearest fire hydrants to any address in Boston. Independent reference tool — not officially affiliated with the Boston Fire Department.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
