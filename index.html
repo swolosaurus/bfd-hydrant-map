@@ -627,7 +627,9 @@
 
       <h3>Data sources</h3>
       <ul>
-        <li>Hydrants, fire boxes, districts: <a href="https://gis.boston.gov" target="_blank" rel="noopener">gis.boston.gov</a></li>
+        <li>Boston hydrants, fire boxes, districts: <a href="https://gis.boston.gov" target="_blank" rel="noopener">gis.boston.gov</a></li>
+        <li>Mutual-aid hydrants: municipal GIS of Brookline, Cambridge, Chelsea,
+            Dedham (DWWD), Milton, Newton, Revere &amp; Somerville</li>
         <li>Building footprints: Boston Planning &amp; Development Agency</li>
         <li>Running cards: BFD official cards</li>
         <li>Map tiles &amp; geocoding: Google Maps Platform</li>
@@ -674,7 +676,7 @@ const BUILDINGS_URL  = 'https://gis.bostonplans.org/hosting/rest/services/Boston
 const BUNDLE_URL          = './boston_buildings.json.gz';
 const BUNDLE_VER          = 1;
 const HYDRANT_BUNDLE_URL  = './boston_hydrants.json.gz';
-const HYDRANT_BUNDLE_VER  = 1;
+const HYDRANT_BUNDLE_VER  = 2;
 const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
 const DISTRICT_BUNDLE_VER = 2;
 const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
@@ -1846,9 +1848,11 @@ async function showHydrants(lat, lng, label) {
     hydrantsData = [];
     document.getElementById('hydrantList').innerHTML = `
       <div class="empty-state">
-        <div class="empty-title">No Boston hydrants nearby</div>
-        <div class="empty-sub">This address is outside the Boston hydrant dataset.
-        Likely mutual aid (Chelsea, Cambridge, Somerville, Brookline, etc.).</div>
+        <div class="empty-title">No hydrants found nearby</div>
+        <div class="empty-sub">Coverage: Boston, Brookline, Cambridge, Chelsea,
+        Dedham, Milton, Newton, Revere, Somerville. This address may be outside
+        the covered area (Everett, Winthrop, Watertown &amp; Quincy publish no
+        public hydrant data).</div>
       </div>`;
     document.getElementById('panel').classList.add('open');
     document.getElementById('panel').classList.remove('collapsed');
@@ -2339,7 +2343,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v70';
+  const ver = 'v71';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
