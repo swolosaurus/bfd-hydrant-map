@@ -206,13 +206,14 @@
     /* ── Map ── */
     #map { flex: 1; min-height: 0; }
 
-    /* Card modal overlays ONLY the hydrant list area, not the whole app —
-       map and panel header (count + BOX badge) stay visible */
+    /* Card modal is FULLSCREEN so running cards render large enough to read —
+       previously scoped only to the panel area, which was too small on phones
+       (especially in the empty-panel case like Chelsea addresses). */
     #card-modal {
-      position: absolute;
+      position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.96);
-      z-index: 50;
+      z-index: 100;
       display: none;
       align-items: center; justify-content: center;
       overflow: hidden;
@@ -470,6 +471,20 @@
     #panel.collapsed #hydrantList { display: none; }
 
     #hydrantList { overflow-y: auto; flex: 1; max-height: 236px; }
+
+    /* Empty-state message shown when 0 hydrants match (out-of-Boston addr). */
+    .empty-state {
+      padding: 18px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty-title {
+      font-size: 14px; font-weight: 700; color: var(--fg);
+      margin-bottom: 6px;
+    }
+    .empty-sub {
+      font-size: 12px; line-height: 1.35;
+    }
 
     .h-row {
       display: flex; align-items: center;
@@ -1825,7 +1840,18 @@ async function showHydrants(lat, lng, label) {
 
   if (!hydrants.length) {
     setStatus(`⚠️  No hydrants found within ${RADIUS_FEET} ft`);
-    document.getElementById('panel').classList.remove('open');
+    // Keep the panel open so the BOX badge stays tappable (mutual-aid boxes
+    // like Chelsea still have running cards worth viewing), but replace the
+    // list with a friendly message instead of leaving a giant black void.
+    hydrantsData = [];
+    document.getElementById('hydrantList').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-title">No Boston hydrants nearby</div>
+        <div class="empty-sub">This address is outside the Boston hydrant dataset.
+        Likely mutual aid (Chelsea, Cambridge, Somerville, Brookline, etc.).</div>
+      </div>`;
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('panel').classList.remove('collapsed');
     return;
   }
   hydrantsData = hydrants;
@@ -2313,7 +2339,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v69';
+  const ver = 'v70';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
