@@ -140,6 +140,53 @@
       flex: 1; min-width: 0;
       display: flex;
     }
+
+    /* ── Alarm-box typeahead ──
+       Drops below the search input when the query looks like a box number
+       or matches box location text. Tap a row to jump to that box. */
+    #boxSuggest {
+      position: absolute;
+      top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      max-height: 46vh;
+      overflow-y: auto;
+      z-index: 60;
+      display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    #boxSuggest.show { display: block; }
+    .bs-row {
+      display: flex; align-items: center; gap: 9px;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .bs-row:last-child { border-bottom: none; }
+    .bs-row:active, .bs-row.sel { background: var(--card); }
+    .bs-num {
+      flex-shrink: 0;
+      background: #FFD400; color: #111;
+      font-weight: 800; font-size: 13px; letter-spacing: 0.5px;
+      padding: 3px 8px; border-radius: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bs-loc {
+      flex: 1; min-width: 0;
+      font-size: 13px; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bs-dist {
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+    .bs-empty {
+      padding: 14px 12px;
+      font-size: 12px; color: var(--muted); text-align: center;
+    }
     #addressInput {
       flex: 1; min-width: 0;
       padding: 12px 38px 12px 14px;
@@ -549,10 +596,13 @@
   <div id="searchbar">
     <div id="inputWrap">
       <input type="text" id="addressInput"
-             placeholder="Paste NowForce address…"
+             placeholder="Address, box #, or street…"
              autocomplete="off" autocorrect="off"
-             autocapitalize="off" spellcheck="false">
+             autocapitalize="off" spellcheck="false"
+             role="combobox" aria-expanded="false"
+             aria-controls="boxSuggest" aria-autocomplete="list">
       <button id="clearBtn" type="button" aria-label="Clear address">✕</button>
+      <div id="boxSuggest" role="listbox" aria-label="Matching alarm boxes"></div>
     </div>
     <button class="btn" id="locBtn"   title="Use my GPS location">📍</button>
   </div>
@@ -613,6 +663,8 @@
       <ul>
         <li>From NowForce: tap <b>Open with → Hydrant Map</b></li>
         <li>Manually: paste any Boston address, hit Enter</li>
+        <li>Box lookup: type a box number (<b>7226</b>) or a street
+            (<b>Dakota</b>) and pick from the dropdown</li>
         <li>Current location: tap <b>📍</b></li>
         <li>Tap the <b>BOX</b> badge to view the full running card</li>
       </ul>
@@ -682,7 +734,7 @@ const DISTRICT_BUNDLE_VER = 2;
 const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
 const BOX_BUNDLE_VER      = 1;
 const CARDS_BUNDLE_URL    = './running_cards.json.gz';
-const CARDS_BUNDLE_VER    = 4;
+const CARDS_BUNDLE_VER    = 5;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -1022,6 +1074,105 @@ function findNearestBox(lat, lng) {
   return best ? best.n : null;
 }
 
+// ─────────────────────────────────────────────
+//  ALARM-BOX TYPEAHEAD
+//  Lets the search bar double as a box lookup. All-digit queries match on
+//  box number; anything else matches box location text, so "DAKOTA" finds
+//  every box covering Dakota St.
+// ─────────────────────────────────────────────
+let _bsMatches = [];
+let _bsSel     = -1;
+
+const escHtml = s => String(s).replace(/[&<>"']/g, c => (
+  { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+));
+
+function searchBoxes(q) {
+  if (!_allBoxes || !_allBoxes.length) return [];
+  const raw = q.trim();
+  if (raw.length < 2) return [];
+  const digits = /^\d+$/.test(raw);
+  const up = raw.toUpperCase();
+  const scored = [];
+  for (const b of _allBoxes) {
+    const n = String(b.n);
+    let rank = -1;
+    if (digits) {
+      if (n === raw)             rank = 0;
+      else if (n.startsWith(raw)) rank = 1;
+      else if (n.includes(raw))   rank = 2;
+    } else {
+      const loc = (b.l || '').toUpperCase();
+      if (loc.startsWith(up))    rank = 1;
+      else if (loc.includes(up)) rank = 2;
+    }
+    if (rank >= 0) scored.push({ b, rank, n });
+  }
+  scored.sort((a, z) =>
+    a.rank - z.rank || a.n.localeCompare(z.n, undefined, { numeric: true }));
+  return scored.slice(0, 8).map(o => o.b);
+}
+
+function hideBoxSuggest() {
+  const el = document.getElementById('boxSuggest');
+  if (!el) return;
+  el.classList.remove('show');
+  el.innerHTML = '';
+  _bsMatches = [];
+  _bsSel = -1;
+  document.getElementById('addressInput').setAttribute('aria-expanded', 'false');
+}
+
+function renderBoxSuggest(matches) {
+  const el = document.getElementById('boxSuggest');
+  if (!el) return;
+  _bsMatches = matches;
+  _bsSel = -1;
+  if (!matches.length) { hideBoxSuggest(); return; }
+  el.innerHTML = matches.map((b, i) => `
+    <div class="bs-row" role="option" data-i="${i}">
+      <span class="bs-num">${escHtml(b.n)}</span>
+      <span class="bs-loc">${escHtml(b.l || '—')}</span>
+      ${b.d ? `<span class="bs-dist">D${escHtml(b.d)}</span>` : ''}
+    </div>`).join('');
+  el.classList.add('show');
+  document.getElementById('addressInput').setAttribute('aria-expanded', 'true');
+}
+
+function highlightBoxSuggest(i) {
+  const rows = document.querySelectorAll('#boxSuggest .bs-row');
+  rows.forEach(r => r.classList.remove('sel'));
+  if (i >= 0 && rows[i]) {
+    rows[i].classList.add('sel');
+    rows[i].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// Jump to a box: pin the map at its coordinates, show surrounding hydrants,
+// and pin its running card explicitly so the geo-nearest lookup can't
+// override the box the user actually asked for.
+function selectBox(b) {
+  hideBoxSuggest();
+  const input = document.getElementById('addressInput');
+  const loc = titleCase(b.l || '');
+  input.value = loc || `Box ${b.n}`;
+  input.blur();
+  setRunningCard(String(b.n), { explicit: true });
+  showHydrants(b.y, b.x, loc ? `BOX ${b.n} · ${loc}` : `BOX ${b.n}`);
+}
+
+// Called on each keystroke. Kicks off a bundle load if the boxes aren't
+// in memory yet so the first search of a session still works.
+function updateBoxSuggest() {
+  const q = document.getElementById('addressInput').value.trim();
+  if (q.length < 2 || /^-?\d{1,3}\.\d+\s*,/.test(q)) { hideBoxSuggest(); return; }
+  if (!_allBoxes) {
+    ensureBoxesBundleLoaded().then(ok => { if (ok) updateBoxSuggest(); });
+    return;
+  }
+  renderBoxSuggest(searchBoxes(q));
+}
+
 // Draw all alarm boxes within `radiusFeet` of (lat, lng) as green dots so the
 // user can see box density and how far the actual dispatcher's box is from
 // the geo-nearest one.
@@ -1278,6 +1429,10 @@ function search() {
     runLatLngSearch(`${llMatch[1]},${llMatch[2]}`);
     return;
   }
+  // A plain typed address should recompute the nearest box. Only text that
+  // actually carries a box number (NowForce clipboard, "Nearest Box: 7226")
+  // keeps a pinned box across the search.
+  if (!parseBoxNumber(raw)) _explicitBox = false;
   const addr = parseNowForce(raw);
   showLoad('Locating ' + addr + '…');
   geocoder.geocode({ address: addr, region: 'us' }, (results, status) => {
@@ -2017,11 +2172,45 @@ window.initMap = function() {
     if (e.target === aboutModal) closeAbout();
   });
   const inputEl = document.getElementById('addressInput');
+  inputEl.addEventListener('input', updateBoxSuggest);
+  inputEl.addEventListener('focus', updateBoxSuggest);
   inputEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); search(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!_bsMatches.length) return;
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      _bsSel = (_bsSel + step + _bsMatches.length + 1) % (_bsMatches.length + 1) - 1;
+      if (_bsSel < -1) _bsSel = _bsMatches.length - 1;
+      highlightBoxSuggest(_bsSel);
+      return;
+    }
+    if (e.key === 'Escape') { hideBoxSuggest(); return; }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // A highlighted row wins; otherwise an exact box-number match wins;
+      // otherwise fall through to the normal address search.
+      if (_bsSel >= 0 && _bsMatches[_bsSel]) { selectBox(_bsMatches[_bsSel]); return; }
+      const raw = inputEl.value.trim();
+      if (/^\d+$/.test(raw)) {
+        const exact = _bsMatches.find(b => String(b.n) === raw);
+        if (exact) { selectBox(exact); return; }
+      }
+      hideBoxSuggest();
+      search();
+    }
   });
+  // mousedown (not click) so the row is picked before the input blurs
+  document.getElementById('boxSuggest').addEventListener('mousedown', e => {
+    const row = e.target.closest('.bs-row');
+    if (!row) return;
+    e.preventDefault();
+    const b = _bsMatches[Number(row.dataset.i)];
+    if (b) selectBox(b);
+  });
+  inputEl.addEventListener('blur', () => setTimeout(hideBoxSuggest, 120));
   document.getElementById('clearBtn').addEventListener('click', () => {
     inputEl.value = '';
+    hideBoxSuggest();
     inputEl.focus();
     setRunningCard(null);
   });
@@ -2343,7 +2532,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v73';
+  const ver = 'v74';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
