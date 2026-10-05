@@ -183,6 +183,13 @@
       font-size: 11px; font-weight: 700; color: var(--muted);
       letter-spacing: 0.5px;
     }
+    .bs-dist.bs-card {
+      background: var(--card);
+      color: var(--muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+    }
     .bs-empty {
       padding: 14px 12px;
       font-size: 12px; color: var(--muted); text-align: center;
@@ -1082,10 +1089,31 @@ function findNearestBox(lat, lng) {
 // ─────────────────────────────────────────────
 let _bsMatches = [];
 let _bsSel     = -1;
+let _cardOnly  = null;   // running cards with no alarm-box entry (tunnel/zone cards)
+let openCardModal = null;  // assigned during map init
 
 const escHtml = s => String(s).replace(/[&<>"']/g, c => (
   { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
 ));
+
+// Running cards whose box has no entry in the alarm-box bundle — tunnel,
+// highway and airport dispatch zones. They have a card and a location but
+// no coordinates, so they can be looked up but not mapped.
+function buildCardOnlyIndex() {
+  if (_cardOnly || !_runningCards || !_allBoxes) return _cardOnly;
+  const known = new Set(_allBoxes.map(b => String(b.n)));
+  _cardOnly = [];
+  for (const [num, card] of Object.entries(_runningCards)) {
+    if (known.has(String(num))) continue;
+    _cardOnly.push({
+      n: String(num),
+      l: card.location || '',
+      d: card.district || null,
+      cardOnly: true,
+    });
+  }
+  return _cardOnly;
+}
 
 function searchBoxes(q) {
   if (!_allBoxes || !_allBoxes.length) return [];
@@ -1094,7 +1122,8 @@ function searchBoxes(q) {
   const digits = /^\d+$/.test(raw);
   const up = raw.toUpperCase();
   const scored = [];
-  for (const b of _allBoxes) {
+  const pool = _allBoxes.concat(buildCardOnlyIndex() || []);
+  for (const b of pool) {
     const n = String(b.n);
     let rank = -1;
     if (digits) {
@@ -1133,7 +1162,9 @@ function renderBoxSuggest(matches) {
     <div class="bs-row" role="option" data-i="${i}">
       <span class="bs-num">${escHtml(b.n)}</span>
       <span class="bs-loc">${escHtml(b.l || '—')}</span>
-      ${b.d ? `<span class="bs-dist">D${escHtml(b.d)}</span>` : ''}
+      ${b.cardOnly
+          ? '<span class="bs-dist bs-card">CARD</span>'
+          : (b.d ? `<span class="bs-dist">D${escHtml(b.d)}</span>` : '')}
     </div>`).join('');
   el.classList.add('show');
   document.getElementById('addressInput').setAttribute('aria-expanded', 'true');
@@ -1157,6 +1188,30 @@ function selectBox(b) {
   const loc = titleCase(b.l || '');
   input.value = loc || `Box ${b.n}`;
   input.blur();
+
+  // Zone cards (tunnel / highway / airport) have no coordinates — there is
+  // nothing to map and no hydrants to rank. Pop the card straight open and
+  // say why the hydrant list is empty.
+  if (b.cardOnly || b.y == null || b.x == null) {
+    hydrantMarkers.forEach(m => m.setMap(null));
+    hydrantMarkers = [];
+    hydrantsData = [];
+    if (infoWindow) infoWindow.close();
+    document.getElementById('hydrantList').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-title">Zone card — no map location</div>
+        <div class="empty-sub">This is a tunnel, highway or airport dispatch
+        zone. It has a running card but no alarm-box coordinates, so there are
+        no hydrants to rank.</div>
+      </div>`;
+    const panel = document.getElementById('panel');
+    panel.classList.add('open');
+    panel.classList.remove('collapsed');
+    setRunningCard(String(b.n), { explicit: true, openModal: true });
+    setStatus(`BOX ${b.n} — zone card, no map location`);
+    return;
+  }
+
   setRunningCard(String(b.n), { explicit: true });
   showHydrants(b.y, b.x, loc ? `BOX ${b.n} · ${loc}` : `BOX ${b.n}`);
 }
@@ -1169,6 +1224,10 @@ function updateBoxSuggest() {
   if (!_allBoxes) {
     ensureBoxesBundleLoaded().then(ok => { if (ok) updateBoxSuggest(); });
     return;
+  }
+  // Zone cards live only in the cards bundle; pull it in so they're findable.
+  if (!_runningCards) {
+    ensureRunningCardsBundleLoaded().then(ok => { if (ok) updateBoxSuggest(); });
   }
   renderBoxSuggest(searchBoxes(q));
 }
@@ -1573,6 +1632,7 @@ function setRunningCard(box, opts = {}) {
     panelBox.dataset.url = url;
     panelBox.classList.add('show');
     if (modalImg) modalImg.src = url;
+    if (opts.openModal && openCardModal) openCardModal(url);
   };
   probe.onerror = () => {
     if (_currentBox !== box) return;
@@ -2358,13 +2418,16 @@ window.initMap = function() {
   modal.addEventListener('pointercancel', onUp);
   modal.addEventListener('pointerleave', onUp);
 
-  panelBox.addEventListener('click', (e) => {
-    e.stopPropagation();  // don't toggle the panel collapse
-    const url = panelBox.dataset.url;
+  // Exposed so a zone-card search result can pop the card straight open.
+  openCardModal = (url) => {
     if (!url) return;
     modalImg.src = url;
     resetTransform();
     modal.classList.add('show');
+  };
+  panelBox.addEventListener('click', (e) => {
+    e.stopPropagation();  // don't toggle the panel collapse
+    openCardModal(panelBox.dataset.url);
   });
   const closeModal = () => { modal.classList.remove('show'); resetTransform(); };
   document.getElementById('card-modal-close').addEventListener('click', closeModal);
@@ -2532,7 +2595,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v75';
+  const ver = 'v76';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
