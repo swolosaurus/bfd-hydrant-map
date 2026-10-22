@@ -88,6 +88,23 @@ def map_milton(a):
     return _clean(a.get("HYD_ID")), m, "Milton"
 
 
+def map_everett(a):
+    # assessflow is categorical (High / Normal / Low), not GPM.
+    # A non-Operable status is surfaced as a warning - a hard-to-turn hydrant
+    # is still worth knowing about, but the crew should know before pulling up.
+    bits = []
+    flow = _clean(a.get("assessflow"))
+    if flow and flow.lower() not in ("none",):
+        bits.append(f"{flow} flow")
+    status = _clean(a.get("opstatus"))
+    if status and status.lower() not in ("operable", "unknown"):
+        bits.append(status)
+    if not bits:
+        bits.append(_join(a.get("hydmfg"), a.get("hydmodel")))
+    ident = _clean(a.get("hydrant_id")) or _clean(a.get("point_id"))
+    return ident, " - ".join(b for b in bits if b), "Everett"
+
+
 def map_dedham(a):
     m = _gpm(a.get("Avail_FireFlow"))
     town = _clean(a.get("MUNICIPALITY")) or "Dedham"
@@ -181,6 +198,20 @@ SOURCES = [
         "page_size": 1000,
         "map": map_dedham,
     },
+    {
+        # Consultant-published 2020 water-system shapefile (AGOL user
+        # John.Ahern_INE), NOT an official city service - Everett publishes
+        # nothing itself. Verified in-town coords. Treat as fragile.
+        # NOTE: this layer's OID field is FID, not OBJECTID.
+        "name": "Everett",
+        "url": "https://services3.arcgis.com/16nyMR1mdhEaLG41/arcgis/rest/services/Everett_Water2020_shp/FeatureServer/4/query",
+        "out_fields": "hydrant_id,point_id,street_nam,hydmfg,hydmodel,assessflow,opstatus",
+        "where": "1=1",
+        "order_by": "FID",
+        "skip_if": lambda a: _clean(a.get("opstatus")).lower() == "inoperable",
+        "page_size": 2000,
+        "map": map_everett,
+    },
 ]
 
 # Greater-Boston sanity window — any record outside this box is a data error
@@ -215,7 +246,7 @@ def fetch_page(src, offset):
         "geometryPrecision": "6",
         "resultOffset": offset,
         "resultRecordCount": src["page_size"],
-        "orderByFields": "OBJECTID",
+        "orderByFields": src.get("order_by", "OBJECTID"),
         "f": "json",
     }
     data = fetch_json(f"{src['url']}?{urllib.parse.urlencode(params)}")
@@ -268,7 +299,60 @@ def fetch_source(src):
     return out
 
 
+def write_bundle(hydrants, t0):
+    out_path = Path(__file__).parent / "boston_hydrants.json"
+    print(f"\nWriting {len(hydrants)} hydrants to {out_path.name}...")
+    with out_path.open("w") as fh:
+        json.dump(hydrants, fh, separators=(",", ":"))
+    gz_path = out_path.with_suffix(".json.gz")
+    with out_path.open("rb") as srcf, gzip.open(gz_path, "wb", compresslevel=9) as dst:
+        dst.writelines(srcf)
+    print(f"  raw:  {out_path.stat().st_size/1024:7.1f} KB")
+    print(f"  gzip: {gz_path.stat().st_size/1024:7.1f} KB")
+    print(f"  done in {int(time.time()-t0)}s")
+
+
+def merge_one(name):
+    """Refresh a single town in place, leaving the other towns alone.
+
+    Municipal endpoints go down - Somerville and Brookline were both
+    unreachable on 2026-10-22. A full rebuild refuses to write a partial
+    bundle, which is correct, but it means one dead host blocks adding a
+    new town. This re-fetches just `name` and splices it into the bundle.
+
+        python build_hydrants_bundle.py --only Everett
+    """
+    t0 = time.time()
+    src = next((x for x in SOURCES if x["name"].lower() == name.lower()), None)
+    if not src:
+        print(f"Unknown source {name!r}. Known: {[x['name'] for x in SOURCES]}")
+        return 1
+    out_path = Path(__file__).parent / "boston_hydrants.json"
+    if not out_path.exists():
+        print("No existing bundle to merge into - run a full build first.")
+        return 1
+    with out_path.open() as fh:
+        existing = json.load(fh)
+
+    fresh = fetch_source(src)
+    if not fresh:
+        print(f"{name}: fetched 0 records - refusing to merge.")
+        return 1
+
+    towns = {src["name"]}
+    if src["name"] == "Dedham":
+        towns.add("Westwood")          # Dedham's layer carries both
+    kept = [h for h in existing if h.get("s") not in towns]
+    dropped = len(existing) - len(kept)
+    label = "/".join(sorted(towns))
+    print(f"\n  existing {len(existing)} - dropped {dropped} old {label} + added {len(fresh)} = {len(kept)+len(fresh)}")
+    write_bundle(kept + fresh, t0)
+    return 0
+
+
 def main():
+    if len(sys.argv) > 2 and sys.argv[1] == "--only":
+        return merge_one(sys.argv[2])
     t0 = time.time()
     all_hydrants = []
     failures = []
@@ -285,17 +369,7 @@ def main():
             print(f"   {name}: {err}")
         return 1
 
-    out_path = Path(__file__).parent / "boston_hydrants.json"
-    print(f"\nWriting {len(all_hydrants)} hydrants to {out_path.name}...")
-    with out_path.open("w") as fh:
-        json.dump(all_hydrants, fh, separators=(",", ":"))
-    gz_path = out_path.with_suffix(".json.gz")
-    with out_path.open("rb") as srcf, gzip.open(gz_path, "wb", compresslevel=9) as dst:
-        dst.writelines(srcf)
-
-    print(f"  raw:  {out_path.stat().st_size/1024:7.1f} KB")
-    print(f"  gzip: {gz_path.stat().st_size/1024:7.1f} KB")
-    print(f"  done in {int(time.time()-t0)}s")
+    write_bundle(all_hydrants, t0)
     return 0
 
 
