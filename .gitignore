@@ -7,3 +7,7 @@ running_cards.json
 ocr_progress.jsonl
 build_log.txt
 __pycache__/
+
+# intermediate from parse_running_cards.py; merge_running_cards.py consumes it
+running_cards_v21.json
+parse_skipped.txt

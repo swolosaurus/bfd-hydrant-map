@@ -347,6 +347,15 @@
     }
     #panelBox.show { display: inline-block; }
     #panelBox:active { background: #E8C200; }
+    /* Real alarm box, no scanned running card (16 of 1,850 — harbor islands,
+       two Logan gates, and 716). Outline chip so the number still shows. */
+    #panelBox.nocard { background: transparent; color: #FFD400;
+                       box-shadow: inset 0 0 0 1.5px #FFD400; }
+    #panelBox.nocard:active { background: rgba(255,212,0,0.15); }
+    /* Dispatch box has no card, so we're showing a neighbour's. Amber, not
+       the normal yellow, so it never reads as that box's own card. */
+    #panelBox.substitute { background: #FFA000; }
+    #panelBox.substitute:active { background: #E08E00; }
 
     /* Unit picker chip — sits in right header cell, opens the unit modal. */
     #unitPicker {
@@ -740,8 +749,11 @@ const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
 const DISTRICT_BUNDLE_VER = 2;
 const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
 const BOX_BUNDLE_VER      = 1;
+// How far a stand-in running card may sit from a card-less box before we stop
+// offering it and just show the bare box number.
+const CARD_SUBSTITUTE_MAX_FT = 1500;
 const CARDS_BUNDLE_URL    = './running_cards.json.gz';
-const CARDS_BUNDLE_VER    = 6;
+const CARDS_BUNDLE_VER    = 7;
 const RADIUS_FEET    = 500;
 const BUILDING_RADIUS_FEET = 350;
 
@@ -1079,6 +1091,42 @@ function findNearestBox(lat, lng) {
     if (d < bestDist) { bestDist = d; best = b; }
   }
   return best ? best.n : null;
+}
+
+// Is this a box number we actually know about — an alarm box in the bundle,
+// or a zone/tunnel card we ship? Used to decide whether a missing PNG means
+// "real box, no card on file" or "junk number, drop the badge".
+function boxInBundle(box) {
+  const s = String(box);
+  if (_allBoxes && _allBoxes.some(b => String(b.n) === s)) return true;
+  if (_runningCards && _runningCards[s]) return true;
+  return false;
+}
+
+// Nearest box to the incident that we actually hold a running card for,
+// skipping `exclude` (the card-less box we're standing in for). Falls back to
+// the excluded box's own coords when there's no incident fix yet — e.g. the
+// box was typed straight into the search bar.
+function nearestCardBox(exclude) {
+  if (!_allBoxes || !_runningCards) return null;
+  const skip = String(exclude);
+  const self = _allBoxes.find(b => String(b.n) === skip);
+  const oLat = (lastLat != null) ? lastLat : (self ? self.y : null);
+  const oLng = (lastLng != null) ? lastLng : (self ? self.x : null);
+  if (oLat == null || oLng == null) return null;
+  let best = null, bestDist = Infinity;
+  for (const b of _allBoxes) {
+    const n = String(b.n);
+    if (n === skip || !_runningCards[n]) continue;
+    // Rank by distance from the incident — that's the card you want — but
+    // only accept boxes close enough to the dispatch box that their response
+    // is plausibly the same. Without the cap the harbour-island boxes borrow
+    // a mainland card whose companies could never reach them.
+    if (self && haversine(self.y, self.x, b.y, b.x) > CARD_SUBSTITUTE_MAX_FT) continue;
+    const d = haversine(oLat, oLng, b.y, b.x);
+    if (d < bestDist) { bestDist = d; best = n; }
+  }
+  return best;
 }
 
 // ─────────────────────────────────────────────
@@ -1606,6 +1654,10 @@ function parseBoxNumber(text) {
 // fallback in showHydrants from overriding an explicit choice.
 let _currentBox = null;
 let _explicitBox = false;
+// The box whose card is actually rendered. Normally identical to _currentBox,
+// but diverges when _currentBox has no card and we substitute a neighbour's —
+// the due list and unit-picker chips must follow the card, not the label.
+let _cardBox = null;
 
 function setRunningCard(box, opts = {}) {
   const panelBox = document.getElementById('panelBox');
@@ -1613,7 +1665,8 @@ function setRunningCard(box, opts = {}) {
   if (!box) {
     _currentBox = null;
     _explicitBox = false;
-    panelBox.classList.remove('show');
+    _cardBox = null;
+    panelBox.classList.remove('show', 'nocard', 'substitute');
     panelBox.dataset.url = '';
     renderDueList(null);
     updateUnitPickerLabel();
@@ -1622,6 +1675,7 @@ function setRunningCard(box, opts = {}) {
   if (!opts.explicit && _explicitBox) return;
   if (_currentBox === box) return;
   _currentBox = box;
+  _cardBox = box;
   _explicitBox = !!opts.explicit;
 
   const url = `./running_cards/${box}.png`;
@@ -1630,24 +1684,81 @@ function setRunningCard(box, opts = {}) {
     if (_currentBox !== box) return;
     panelBox.textContent = `BOX ${box}`;
     panelBox.dataset.url = url;
+    _cardBox = box;
+    panelBox.classList.remove('nocard', 'substitute');
     panelBox.classList.add('show');
     if (modalImg) modalImg.src = url;
     if (opts.openModal && openCardModal) openCardModal(url);
   };
   probe.onerror = () => {
     if (_currentBox !== box) return;
-    panelBox.classList.remove('show');
-    panelBox.dataset.url = '';
-    _currentBox = null;
-    _explicitBox = false;
-    updateUnitPickerLabel();
+    // No PNG for this box. If it's a real alarm box the number still matters
+    // — dispatch gave it to us — so show it as an outline chip. Dropping the
+    // badge outright used to leave the header completely blank (box 716).
+    // Real box, no PNG. Prefer the nearest box we DO have a card for — on a
+    // corner like 716 the adjacent box is feet away and carries the companies
+    // you actually need. Label it `BOX 716→715` so it's never mistaken for
+    // 716's own card. Only if no substitute exists do we show a bare number.
+    const showBare = () => {
+      if (_currentBox !== box) return;
+      _cardBox = null;
+      panelBox.textContent = `BOX ${box}`;
+      panelBox.dataset.url = '';
+      panelBox.classList.remove('substitute');
+      panelBox.classList.add('show', 'nocard');
+      if (modalImg) modalImg.src = '';
+      renderDueList(null);
+      updateUnitPickerLabel();
+    };
+    const showSubstitute = () => {
+      if (_currentBox !== box) return;
+      const alt = nearestCardBox(box);
+      if (!alt) { showBare(); return; }
+      const altUrl = `./running_cards/${alt}.png`;
+      _cardBox = alt;
+      panelBox.textContent = `BOX ${box}→${alt}`;
+      panelBox.dataset.url = altUrl;
+      panelBox.classList.remove('nocard');
+      panelBox.classList.add('show', 'substitute');
+      if (modalImg) modalImg.src = altUrl;
+      renderDueList(_runningCards[alt] || null);
+      updateUnitPickerLabel();
+      setStatus(`Box ${box} has no card — showing nearest, box ${alt}`);
+    };
+    const showCardless = () => {
+      if (_runningCards) { showSubstitute(); return; }
+      showBare();
+      ensureRunningCardsBundleLoaded().then(ok => { if (ok) showSubstitute(); });
+    };
+    const clearBadge = () => {
+      if (_currentBox !== box) return;
+      panelBox.classList.remove('show', 'nocard');
+      panelBox.dataset.url = '';
+      _currentBox = null;
+      _cardBox = null;
+      _explicitBox = false;
+      updateUnitPickerLabel();
+      // A junk box number from the clipboard must not suppress the
+      // geo-nearest lookup that showHydrants already skipped.
+      if (lastLat != null && lastLng != null) {
+        const near = findNearestBox(lastLat, lastLng);
+        if (near && near !== box) setRunningCard(near);
+      }
+    };
+    if (_allBoxes) {
+      boxInBundle(box) ? showCardless() : clearBadge();
+    } else {
+      ensureBoxesBundleLoaded().then(() => {
+        boxInBundle(box) ? showCardless() : clearBadge();
+      });
+    }
   };
   probe.src = url;
 
   // Show structured first-3-due data from the cards bundle (if loaded).
   // If bundle isn't loaded yet, kick it off and retry once.
   const tryRender = () => {
-    if (_currentBox !== box) return;  // box changed under us
+    if (_currentBox !== box || _cardBox !== box) return;  // box changed, or we substituted
     if (!_runningCards) return;
     renderDueList(_runningCards[box] || null);
     updateUnitPickerLabel();
@@ -1852,7 +1963,7 @@ function updateUnitPickerLabel() {
   label.textContent = _selectedUnit.code;
   btn.classList.add('cat-' + _selectedUnit.cat);
 
-  const card  = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
+  const card  = (_runningCards && _cardBox) ? _runningCards[_cardBox] : null;
   const alarm = _alarmFor(card, _selectedUnit);
   const cover = _coverFor(card, _selectedUnit);
   if (alarm) {
@@ -1872,7 +1983,7 @@ function setSelectedUnit(unit) {
   _saveSelectedUnit(unit);
   updateUnitPickerLabel();
   // Re-render due list to refresh the highlight.
-  const card = (_runningCards && _currentBox) ? _runningCards[_currentBox] : null;
+  const card = (_runningCards && _cardBox) ? _runningCards[_cardBox] : null;
   renderDueList(card || null);
 }
 
@@ -2427,6 +2538,10 @@ window.initMap = function() {
   };
   panelBox.addEventListener('click', (e) => {
     e.stopPropagation();  // don't toggle the panel collapse
+    if (!panelBox.dataset.url) {
+      setStatus(`No running card on file for box ${_currentBox || ''}`.trim());
+      return;
+    }
     openCardModal(panelBox.dataset.url);
   });
   const closeModal = () => { modal.classList.remove('show'); resetTransform(); };
@@ -2595,7 +2710,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v77';
+  const ver = 'v79';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
