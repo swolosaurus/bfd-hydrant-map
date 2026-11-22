@@ -16,7 +16,7 @@
   "iconUrl": "https://hydrantmaps.com/icon-512.png",
   "maskableIconUrl": "https://hydrantmaps.com/icon-512.png",
   "appVersion": "1.0.0",
-  "appVersionCode": 1,
+  "appVersionCode": 2,
   "appVersionName": "1.0.0",
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
