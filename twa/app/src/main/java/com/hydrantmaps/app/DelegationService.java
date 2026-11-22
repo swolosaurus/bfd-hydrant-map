@@ -1,4 +1,4 @@
-package io.github.swolosaurus.bfdhydrants;
+package com.hydrantmaps.app;
 
 
 

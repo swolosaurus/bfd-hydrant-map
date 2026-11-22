@@ -21,11 +21,11 @@ plugins {
 }
 
 def twaManifest = [
-    applicationId: 'io.github.swolosaurus.bfdhydrants',
-    hostName: 'swolosaurus.github.io', // The domain being opened in the TWA.
-    launchUrl: '/bfd-hydrant-map/', // The start path for the TWA. Must be relative to the domain.
-    name: 'Boston Hydrant Map', // The application name.
-    launcherName: 'Hydrant Map', // The name shown on the Android Launcher.
+    applicationId: 'com.hydrantmaps.app',
+    hostName: 'hydrantmaps.com', // The domain being opened in the TWA.
+    launchUrl: '/', // The start path for the TWA. Must be relative to the domain.
+    name: 'Hydrant Maps', // The application name.
+    launcherName: 'Hydrant Maps', // The name shown on the Android Launcher.
     themeColor: '#C8102E', // The color used for the status bar.
     themeColorDark: '#000000', // The color used for the dark status bar.
     navigationColor: '#111111', // The color used for the navigation bar.
@@ -52,13 +52,13 @@ def twaManifest = [
 
 android {
     compileSdkVersion 36
-    namespace "io.github.swolosaurus.bfdhydrants"
+    namespace "com.hydrantmaps.app"
     defaultConfig {
-        applicationId "io.github.swolosaurus.bfdhydrants"
+        applicationId "com.hydrantmaps.app"
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 8
-        versionName "1.0.7"
+        versionCode 1
+        versionName "1.0.0"
 
         // The name for the application
         resValue "string", "appName", twaManifest.name
@@ -76,12 +76,12 @@ android {
             // The URL the Web Manifest for the Progressive Web App that the TWA points to. This
             // is used by Chrome OS and Meta Quest to open the Web version of the PWA instead of
             // the TWA, as it will probably give a better user experience for non-mobile devices.
-            resValue "string", "webManifestUrl", 'https://swolosaurus.github.io/bfd-hydrant-map/manifest.json'
+            resValue "string", "webManifestUrl", 'https://hydrantmaps.com/manifest.json'
         
 
         
             // This is used by Meta Quest.
-            resValue "string", "fullScopeUrl", 'https://swolosaurus.github.io/bfd-hydrant-map/'
+            resValue "string", "fullScopeUrl", 'https://hydrantmaps.com/'
         
 
         

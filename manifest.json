@@ -1,7 +1,7 @@
 {
-  "name": "Boston Hydrant Map",
-  "short_name": "Hydrant Map",
-  "description": "Find the nearest fire hydrants to any address in Boston and surrounding mutual-aid communities. Independent reference tool — not officially affiliated with the Boston Fire Department.",
+  "name": "Hydrant Maps",
+  "short_name": "Hydrant Maps",
+  "description": "Find the nearest fire hydrants to any address in Boston and surrounding mutual-aid communities, with BFD running cards. Independent reference tool - not officially affiliated with the Boston Fire Department.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -35,8 +35,8 @@
     "method": "GET",
     "params": {
       "title": "title",
-      "text":  "address",
-      "url":   "url"
+      "text": "address",
+      "url": "url"
     }
   }
 }

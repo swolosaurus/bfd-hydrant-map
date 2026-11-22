@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.swolosaurus.bfdhydrants;
+package com.hydrantmaps.app;
 
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -53,7 +53,7 @@ public class LauncherActivity
 
         String address = extractAddress(intentUri);
         if (address != null && !address.isEmpty()) {
-            return Uri.parse("https://swolosaurus.github.io/bfd-hydrant-map/")
+            return Uri.parse("https://hydrantmaps.com/")
                     .buildUpon()
                     .appendQueryParameter("address", address)
                     .build();
