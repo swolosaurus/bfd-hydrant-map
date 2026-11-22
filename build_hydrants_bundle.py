@@ -68,9 +68,96 @@ def map_chelsea(a):
     return _clean(a.get("assetid")), m, "Chelsea"
 
 
+# Revere is the one town with two useful layers. The Fire Department's field
+# map (FieldApps/FD_Hydrant_Map layer 5) has 920 in-service hydrants, make and
+# model on all of them, and static pressure on ~390 - but flow on only 188.
+# The Water Department's editing layer has fewer hydrants and no hardware data,
+# yet carries flow on 232 and the NFPA cap colour in `comments`. They share
+# `facilityid`, so we take the FD layer as the base and backfill from WS.
+
+_REVERE_WS_CACHE = None
+_REVERE_WS_URL = ("https://gis.revere.org/arcgis/rest/services/"
+                  "WS_Hydrants/WS_Hydrant_Edit/MapServer/1/query")
+
+_CAP_COLORS = {"red", "orange", "green", "blue", "yellow", "white", "purple", "black"}
+
+
+def _flow_num(v):
+    """Pull a GPM number out of '604 GPM', '1060' or ''. Returns '' or 'NNN GPM'."""
+    s = _clean(v)
+    if not s:
+        return ""
+    digits = ""
+    for ch in s:
+        if ch.isdigit():
+            digits += ch
+        elif digits:
+            break
+    return _gpm(digits) if digits else ""
+
+
+def _cap_color(v):
+    """First NFPA colour word in a free-text comment, title-cased."""
+    s = _clean(v)
+    if not s:
+        return ""
+    word = ""
+    for ch in s:
+        if ch.isalpha():
+            word += ch
+        else:
+            break
+    return word.title() if word.lower() in _CAP_COLORS else ""
+
+
+def _revere_ws_lookup():
+    """facilityid -> {flow, color} from Revere's water-department layer."""
+    global _REVERE_WS_CACHE
+    if _REVERE_WS_CACHE is not None:
+        return _REVERE_WS_CACHE
+    out, offset = {}, 0
+    try:
+        while True:
+            q = urllib.parse.urlencode({
+                "where": "1=1",
+                "outFields": "facilityid,full_flow,comments",
+                "returnGeometry": "false",
+                "resultOffset": offset,
+                "resultRecordCount": 2000,
+                "orderByFields": "OBJECTID",
+                "f": "json",
+            })
+            with urllib.request.urlopen(_REVERE_WS_URL + "?" + q, timeout=60) as r:
+                feats = json.loads(r.read().decode("utf-8")).get("features", [])
+            if not feats:
+                break
+            for f in feats:
+                a = f.get("attributes") or {}
+                fid = _clean(a.get("facilityid"))
+                if fid:
+                    out[fid] = {"flow": _flow_num(a.get("full_flow")),
+                                "color": _cap_color(a.get("comments"))}
+            offset += len(feats)
+    except Exception as e:                      # non-fatal: FD data still stands
+        print(f"  Revere      WS backfill unavailable ({e}) - using FD fields only")
+    _REVERE_WS_CACHE = out
+    print(f"  Revere      WS backfill loaded {len(out)} records")
+    return out
+
+
 def map_revere(a):
-    m = _join(_gpm(a.get("full_flow")), a.get("comments"))
-    return _clean(a.get("facilityid")), m, "Revere"
+    fid = _clean(a.get("facilityid"))
+    ws = _revere_ws_lookup().get(fid, {})
+    flow = _flow_num(a.get("full_flow")) or ws.get("flow", "")
+    color = ws.get("color", "")
+    psi = _clean(a.get("static_pressure"))
+    psi = f"{psi} PSI" if psi else ""
+    # Fall back to hardware only when there is no operational data. Revere
+    # records "Unknown" as a literal model value, which is noise, not detail.
+    hw = [x for x in (_clean(a.get("make")), _clean(a.get("model")))
+          if x and x.lower() != "unknown"]
+    m = _join(flow, color, psi) or _join(*hw)
+    return fid, m, "Revere"
 
 
 def map_brookline(a):
@@ -153,8 +240,10 @@ SOURCES = [
     },
     {
         "name": "Revere",
-        "url": "https://gis.revere.org/arcgis/rest/services/WS_Hydrants/WS_Hydrant_Edit/MapServer/1/query",
-        "out_fields": "facilityid,comments,full_flow,lifecyclestatus",
+        # Fire Department field map - more hydrants and richer attributes than
+        # the water-department layer; see map_revere for the WS backfill.
+        "url": "https://gis.revere.org/arcgis/rest/services/FieldApps/FD_Hydrant_Map/MapServer/5/query",
+        "out_fields": "facilityid,full_flow,static_pressure,make,model,lifecyclestatus",
         "where": "1=1",
         "skip_if": lambda a: _clean(a.get("lifecyclestatus")).upper() not in ("", "IS"),
         "page_size": 2000,

@@ -744,7 +744,7 @@ const BUILDINGS_URL  = 'https://gis.bostonplans.org/hosting/rest/services/Boston
 const BUNDLE_URL          = './boston_buildings.json.gz';
 const BUNDLE_VER          = 1;
 const HYDRANT_BUNDLE_URL  = './boston_hydrants.json.gz';
-const HYDRANT_BUNDLE_VER  = 3;
+const HYDRANT_BUNDLE_VER  = 4;
 const DISTRICT_BUNDLE_URL = './boston_districts.json.gz';
 const DISTRICT_BUNDLE_VER = 2;
 const BOX_BUNDLE_URL      = './boston_boxes.json.gz';
@@ -2710,7 +2710,7 @@ if ('serviceWorker' in navigator) {
 
 // Version badge — bumped each build so you can confirm which code is live.
 (function(){
-  const ver = 'v81';
+  const ver = 'v82';
   const el = document.createElement('div');
   el.id = 'versionBadge';
   el.textContent = ver;
